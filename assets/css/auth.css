@@ -1,0 +1,132 @@
+.auth-body {
+    background: #fff;
+}
+
+.auth-wrap {
+    min-height: calc(100vh - 80px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2rem 1rem 3rem;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 520px;
+    background: #fff;
+    border-radius: 1.6rem;
+    box-shadow: 0 16px 50px rgba(17, 24, 39, 0.08);
+    padding: 2rem 1.5rem;
+}
+
+.auth-card h1 {
+    font-size: 2rem;
+    margin-bottom: 0.3rem;
+}
+
+.auth-card .lead-text {
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+}
+
+.auth-card label {
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+}
+
+.required {
+    color: #c0392b;
+}
+
+.auth-card .form-control {
+    border-radius: 999px;
+    padding: 0.8rem 1rem;
+    border-color: #d9e3dc;
+}
+
+.auth-card .form-control:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 0.2rem rgba(11, 92, 58, 0.12);
+}
+
+.password-wrap {
+    position: relative;
+}
+
+.password-wrap .toggle-password {
+    position: absolute;
+    right: 0.9rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+}
+
+.auth-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin: 0.8rem 0 1.2rem;
+}
+
+.auth-meta a,
+.auth-switch a {
+    color: var(--brand);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.auth-switch,
+.secure-note {
+    text-align: center;
+    color: var(--muted);
+}
+
+.secure-note {
+    font-size: 0.9rem;
+    margin-top: 1rem;
+}
+
+.reset-link-box {
+    margin-top: 1.2rem;
+    padding: 0.9rem;
+    border: 1px solid #b9d9c5;
+    border-radius: 0.6rem;
+    background: var(--brand-soft);
+    color: var(--brand-dark);
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+.reset-link-box p {
+    margin: 0.35rem 0;
+}
+
+.reset-link-box a {
+    color: var(--brand-dark);
+    font-weight: 600;
+}
+
+.btn-auth {
+    width: 100%;
+    border-radius: 999px;
+    background: var(--brand);
+    border: 0;
+    color: #fff;
+    padding: 0.85rem;
+    font-weight: 700;
+}
+
+.btn-auth:hover,
+.btn-auth:focus {
+    background: var(--brand-dark);
+    color: #fff;
+}
+
+@media (min-width: 768px) {
+    .auth-card {
+        padding: 2.4rem;
+    }
+}
