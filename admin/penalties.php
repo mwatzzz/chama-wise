@@ -39,7 +39,7 @@ require ROOT_PATH . '/includes/header.php';
         <a class="admin-nav-link" href="<?php echo e(url('admin/members.php')); ?>"><span>&#128101;</span> Members</a>
         <a class="admin-nav-link" href="<?php echo e(url('admin/contributions.php')); ?>"><span>&#9776;</span> Contributions</a>
         <a class="admin-nav-link active" href="<?php echo e(url('admin/penalties.php')); ?>"><span>&#9888;</span> Penalties</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/loans.php')); ?>"><span>&#9633;</span> Loans</a><a class="admin-nav-link" href="#"><span>&#9635;</span> Meetings</a><a class="admin-nav-link" href="#"><span>&#9646;</span> Reports</a>
+        <a class="admin-nav-link" href="<?php echo e(url('admin/loans.php')); ?>"><span>&#9633;</span> Loans</a><a class="admin-nav-link" href="<?php echo e(url('admin/repayments.php')); ?>"><span>&#8646;</span> Repayments</a><a class="admin-nav-link" href="<?php echo e(url('admin/meetings.php')); ?>"><span>&#9635;</span> Meetings</a><a class="admin-nav-link" href="#"><span>&#9646;</span> Reports</a>
     </nav><a class="admin-nav-link admin-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span>&#10132;</span> Logout</a></aside>
     <section class="admin-content">
         <div class="admin-heading"><div><p class="eyebrow mb-2">Financial Governance</p><h1>Penalties</h1><p>Review and manage contribution penalties.</p></div><a class="btn btn-brand" href="<?php echo e(url('admin/dashboard.php')); ?>">&#8592; Dashboard</a></div>

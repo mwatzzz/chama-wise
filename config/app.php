@@ -16,6 +16,9 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/validation.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/penalties.php';
+require_once dirname(__DIR__) . '/includes/loans.php';
+require_once dirname(__DIR__) . '/includes/ai.php';
+require_once dirname(__DIR__) . '/includes/ai_context.php';
 
 ensure_contributions_table();
 

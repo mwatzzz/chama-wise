@@ -276,9 +276,17 @@ h1, h2, .display-heading {
 .chart-line::before { width: 32%; left: 16%; top: 42%; transform: rotate(13deg); }.chart-line::after { width: 35%; left: 48%; top: 22%; transform: rotate(-4deg); }
 .chart-line i { position: absolute; width: 0.4rem; height: 0.4rem; border: 2px solid var(--brand); background: #fff; border-radius: 50%; }.chart-line i:nth-child(1) { left: 0; top: 67%; }.chart-line i:nth-child(2) { left: 17%; top: 41%; }.chart-line i:nth-child(3) { left: 34%; top: 49%; }.chart-line i:nth-child(4) { left: 51%; top: 20%; }.chart-line i:nth-child(5) { left: 68%; top: 28%; }.chart-line i:nth-child(6) { right: 0; top: -2%; }
 .chart-months { position: absolute; left: 0; right: 0; bottom: -1.35rem; display: flex; justify-content: space-around; color: var(--muted); font-size: 0.7rem; }
+.chart-bars { position: absolute; inset: 0.5rem 1rem 1rem 1rem; display: flex; align-items: flex-end; justify-content: space-around; gap: 0.5rem; }
+.chart-bar-wrap { position: relative; display: flex; align-items: flex-end; justify-content: center; height: 100%; flex: 1; }
+.chart-bar { display: block; width: min(1.3rem, 70%); min-height: 0.2rem; background: var(--brand); border-radius: 0.15rem 0.15rem 0 0; }
+.chart-value { position: absolute; top: -0.9rem; color: var(--muted); font-size: 0.55rem; white-space: nowrap; opacity: 0; }
+.chart-bar-wrap:hover .chart-value { opacity: 1; }
 .loan-empty { display: flex; align-items: center; justify-content: space-around; gap: 1rem; min-height: 10rem; }.loan-donut { width: 8rem; height: 8rem; border: 2px solid var(--text); border-radius: 50%; background: conic-gradient(transparent 0 24%, var(--text) 24% 25%, transparent 25% 64%, var(--text) 64% 65%, transparent 65% 100%); }
 .loan-empty label { display: block; margin: 0.7rem 0; font-size: 0.72rem; color: var(--muted); }.loan-empty label i { display: inline-block; width: 0.9rem; height: 0.9rem; border: 2px solid var(--text); vertical-align: middle; margin-right: 0.35rem; }
 .report-panel label { display: block; color: var(--muted); font-size: 0.72rem; margin-bottom: 0.55rem; }.report-panel select, .report-panel label button { display: block; width: 100%; margin-top: 0.25rem; border: 1px solid #b8cabe; background: #fff; padding: 0.48rem; color: var(--text); font-size: 0.75rem; }.admin-generate { width: 100%; border: 1px solid var(--text); background: #fff; padding: 0.5rem; font-weight: 600; }
+.dashboard-financial-summary { display: grid; gap: 0.3rem; margin-bottom: 0.7rem; color: var(--muted); font-size: 0.7rem; }.dashboard-financial-summary strong { color: var(--brand-dark); }
+.admin-upcoming-list { display: grid; gap: 0.55rem; }.admin-upcoming-list div { display: flex; justify-content: space-between; gap: 0.7rem; border-bottom: 1px solid #e0e9e2; padding-bottom: 0.5rem; font-size: 0.8rem; }.admin-upcoming-list span { color: var(--muted); white-space: nowrap; }
+.report-controls form { display: flex; align-items: end; flex-wrap: wrap; gap: 0.7rem; }.report-controls label { display: grid; gap: 0.3rem; color: var(--muted); font-size: 0.8rem; }.report-controls select { min-width: 14rem; border: 1px solid #b8cabe; background: #fff; padding: 0.55rem; }.report-output { margin-top: 1rem; }.report-print-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }.report-print-heading h2 { margin: 0 0 0.8rem; }.report-print-heading p { color: var(--muted); font-size: 0.75rem; }
 .table-panel { overflow: auto; }.table-panel table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }.table-panel th, .table-panel td { border: 1px solid #cddbd1; padding: 0.42rem 0.5rem; white-space: nowrap; }.table-panel th { background: #f5f9f6; font-weight: 600; }.table-status { color: var(--brand-dark); font-weight: 600; }.empty-module { min-height: 8rem; display: grid; place-content: center; text-align: center; color: var(--muted); }.empty-module span { color: var(--brand); font-size: 2rem; }.empty-module p { margin: 0.4rem 0; }.empty-module a { color: var(--brand); font-size: 0.8rem; }
 
 .member-layout {
@@ -544,6 +552,24 @@ h1, h2, .display-heading {
     margin: 0 auto;
     padding: 0.45rem 0.8rem;
     font-size: 0.8rem;
+}
+
+.profile-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+.profile-file-name {
+    display: block;
+    text-align: center;
+    font-size: 0.75rem;
+    word-break: break-all;
 }
 
 .setting-row {
@@ -867,6 +893,39 @@ h1, h2, .display-heading {
 .loan-detail-grid strong {
     color: var(--text);
 }
+
+.meeting-list {
+    display: grid;
+    gap: 1rem;
+    max-width: 60rem;
+}
+
+.meeting-card-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+}
+
+.meeting-card h2 {
+    font-family: inherit;
+    font-size: 1.15rem;
+    margin: 0;
+}
+
+.meeting-card-heading > strong {
+    color: var(--brand);
+    white-space: nowrap;
+}
+
+.ai-chat-panel { max-width: 62rem; }
+.ai-disclaimer { max-width: 62rem; margin-bottom: 1rem; padding: 0.8rem 1rem; border: 1px solid #d8c79b; background: #fff9e8; color: #6d5721; font-size: 0.82rem; }
+.ai-chat-messages { display: grid; gap: 0.8rem; min-height: 16rem; max-height: 34rem; overflow-y: auto; padding: 0.3rem; }
+.ai-message { max-width: 85%; padding: 0.8rem 1rem; border: 1px solid #d7e2da; background: #f8fbf9; }
+.ai-message-member { justify-self: end; background: var(--brand-soft); }
+.ai-message strong, .ai-message p, .ai-message small { display: block; }.ai-message p { margin: 0.35rem 0; }.ai-message small { color: var(--muted); font-size: 0.7rem; }
+.ai-chat-form { display: grid; gap: 0.7rem; margin-top: 1rem; border-top: 1px solid #d7e2da; padding-top: 1rem; }.ai-chat-form textarea { min-height: 5rem; resize: vertical; border: 1px solid #b8cabe; padding: 0.7rem; }
 
 @media (max-width: 767.98px) {
     .loan-detail-grid {

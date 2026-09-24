@@ -38,8 +38,8 @@ require ROOT_PATH . '/includes/header.php';
             <a class="member-nav-link" href="<?php echo e(url('member/penalties.php')); ?>"><span aria-hidden="true">&#9888;</span> Penalties</a>
             <a class="member-nav-link" href="<?php echo e(url('member/loans.php')); ?>"><span aria-hidden="true">&#9633;</span> Loans</a>
             <a class="member-nav-link" href="<?php echo e(url('member/repayments.php')); ?>"><span aria-hidden="true">&#8646;</span> Loan Repayment</a>
-            <a class="member-nav-link" href="#"><span aria-hidden="true">&#9635;</span> Meetings</a>
-            <a class="member-nav-link" href="#"><span aria-hidden="true">&#10022;</span> AI Advisor</a>
+            <a class="member-nav-link" href="<?php echo e(url('member/meetings.php')); ?>"><span aria-hidden="true">&#9635;</span> Meetings</a>
+            <a class="member-nav-link" href="<?php echo e(url('member/ai_advisor.php')); ?>"><span aria-hidden="true">&#10022;</span> AI Advisor</a>
             <a class="member-nav-link active" href="<?php echo e(url('member/dashboard.php')); ?>"><span aria-hidden="true">&#9679;</span> Profile</a>
         </nav>
         <a class="member-nav-link member-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span aria-hidden="true">&#10132;</span> Logout</a>
@@ -105,7 +105,8 @@ require ROOT_PATH . '/includes/header.php';
                     <form method="post" action="<?php echo e(url('member/upload_picture.php')); ?>" enctype="multipart/form-data" class="profile-upload-form">
                         <?php echo csrf_field(); ?>
                         <label class="btn btn-outline-brand profile-action" for="profile_picture">&#128247; Change Picture</label>
-                        <input type="file" id="profile_picture" name="profile_picture" accept="image/jpeg,image/png,image/webp" hidden required>
+                        <input class="profile-file-input" type="file" id="profile_picture" name="profile_picture" accept="image/jpeg,image/png,image/webp">
+                        <span class="profile-file-name text-muted"></span>
                         <button class="btn btn-brand profile-action upload-submit" type="submit">Upload Picture</button>
                     </form>
                 </article>
