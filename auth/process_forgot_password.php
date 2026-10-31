@@ -21,9 +21,13 @@ $account = find_account_by_email($email);
 if ($account) {
     $token = create_password_reset($account);
     $resetLink = url('auth/reset_password.php?token=' . rawurlencode($token));
-    $_SESSION['_reset_link'] = $resetLink;
+    $emailSent = send_password_reset_email($account, $resetLink);
+
+    if (!$emailSent) {
+        $_SESSION['_reset_link'] = $resetLink;
+    }
 }
 
 old_clear();
-flash_set('success', 'If an account exists for that email, password reset instructions are ready.');
+flash_set('success', 'If an account exists for that email, password reset instructions have been sent.');
 redirect('auth/forgot_password.php');

@@ -19,21 +19,33 @@
 - Admin repayment recording and centralized balance updates
 - Member read-only meetings and minutes
 - Admin meeting creation, editing, and minutes management
+- Meeting scheduling and minutes
 - Admin dashboard live treasury metrics and meeting summaries
 - Admin real-data reports and CSV export
 - Secure logout
+- Member sidebar links to meetings and AI advisor
+- Admin sidebar links connected to Loans, Reports, and Financial Settings; removed unavailable Documents navigation
+- Member dashboard and AI advisor navigation links to Investments
+- Configurable loan eligibility rules with recorded reasons and the existing two-admin approval workflow preserved
+- Idempotent loan applications and repayments, reducing-balance interest, repayment corrections, and audit history
+- Configurable monthly contribution penalties with deadline/grace handling and duplicate prevention
+- Simulated member investment goals and admin-reviewed group proposals
+- Investment goal progress, target dates, editing, completion, and inactive status
+- Admin-managed opportunity details with risk, liquidity, source, and verification status
+- Illustrative investment growth calculator, zero-return comparison, and member education
+- Member-scoped investment context in the existing Ollama financial advisor
+- Admin financial settings with audited changes and KES-based displays
+- Member loan details show the interest method and estimated monthly installment
 
 ## Next
 
-- Add meeting scheduling and minutes
-- Replace member sidebar placeholder links
-- Replace admin sidebar placeholder links
-- Add report generation from real contribution and loan data
 - Add TCPDF dependency and PDF report export
 - Add editable member profile fields
 - Add notification preference persistence
 - Add admin account management and password change
 - Add automated tests for authentication and authorization
+- Add automated integration tests for financial rules and migration compatibility
+- Add automated integration tests for investment ownership, goal lifecycle, and opportunity management
 
 ## Phase 2 Database Tables Added
 

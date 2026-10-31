@@ -30,13 +30,27 @@ require __DIR__ . '/includes/header.php';
 ?>
 
 <section class="hero">
-    <div class="container">
-        <span class="pill">Built for Kenyan Chamas</span>
-        <h1>Smarter Chamas.<br><span>Stronger Futures.</span></h1>
-        <p>Manage your chama contributions, loans, repayments and financial records in one simple platform with personalised AI-powered financial guidance for every member.</p>
-        <div class="hero-actions">
-            <a class="btn btn-brand" href="<?php echo e(url('auth/register.php')); ?>">Create Your Account</a>
-            <a class="btn btn-outline-brand" href="<?php echo e(url('auth/login.php')); ?>">Login</a>
+    <div class="container hero-layout">
+        <div class="hero-copy">
+            <p class="eyebrow">Stronger together</p>
+            <h1>Smarter Chamas.<br><span>Stronger Futures.</span></h1>
+            <p>Manage your chama contributions, loans, repayments and financial records in one simple platform with personalised AI-powered financial guidance for every member.</p>
+            <div class="hero-actions">
+                <a class="btn btn-brand" href="<?php echo e(url('auth/register.php')); ?>">Create Your Account</a>
+                <a class="btn btn-outline-brand" href="<?php echo e(url('auth/login.php')); ?>">Login</a>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <img
+                class="hero-photo"
+                src="<?php echo e(asset('images/chama-community.jpg')); ?>"
+                alt="African colleagues sharing ideas as they work together"
+                fetchpriority="high"
+            >
+            <div class="hero-photo-caption">
+                <span class="hero-photo-icon" aria-hidden="true">&#10003;</span>
+                <span><strong>Growing together</strong><small>One community. Brighter futures.</small></span>
+            </div>
         </div>
     </div>
 </section>

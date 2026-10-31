@@ -130,3 +130,91 @@
         padding: 2.4rem;
     }
 }
+
+.auth-body {
+    min-height: 100vh;
+    background:
+        radial-gradient(ellipse at 82% 12%, rgba(211, 234, 218, 0.7), transparent 30rem),
+        linear-gradient(145deg, #f1f7f2 0%, #f9fbf9 52%, #edf5ef 100%);
+}
+
+.auth-body main {
+    min-height: calc(100vh - 4.5rem);
+    background-image:
+        linear-gradient(145deg, rgba(241, 247, 242, 0.84), rgba(249, 251, 249, 0.78) 52%, rgba(237, 245, 239, 0.84)),
+        url("../images/chama-community.jpg");
+    background-position: center;
+    background-size: cover;
+}
+
+.auth-wrap {
+    min-height: calc(100vh - 4.5rem);
+    align-items: center;
+    padding: clamp(2rem, 6vw, 4rem) 1rem;
+}
+
+.auth-card {
+    max-width: 510px;
+    border: 1px solid rgba(223, 233, 226, 0.95);
+    border-radius: 1.25rem;
+    box-shadow: 0 24px 70px rgba(23, 55, 37, 0.12);
+    padding: clamp(1.6rem, 5vw, 2.65rem);
+}
+
+.auth-card h1 {
+    color: #17231d;
+    font-family: Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: clamp(1.85rem, 4vw, 2.25rem);
+    font-weight: 780;
+    letter-spacing: -0.055em;
+}
+
+.auth-card .lead-text {
+    line-height: 1.65;
+}
+
+.auth-card label {
+    color: #435248;
+    font-size: 0.88rem;
+    font-weight: 650;
+}
+
+.auth-card .form-control {
+    min-height: 3rem;
+    border: 1px solid #dce6df;
+    border-radius: 0.75rem;
+    background: #fbfdfb;
+    box-shadow: none;
+    font-size: 0.94rem;
+}
+
+.auth-card .form-control:focus {
+    border-color: #83b99a;
+    background: #fff;
+    box-shadow: 0 0 0 0.22rem rgba(18, 107, 75, 0.1);
+}
+
+.password-wrap .toggle-password {
+    right: 0.8rem;
+    border-radius: 0.5rem;
+}
+
+.auth-meta {
+    font-size: 0.84rem;
+}
+
+.auth-meta a,
+.auth-switch a {
+    color: #126b4b;
+}
+
+.btn-auth {
+    min-height: 3rem;
+    border-radius: 0.78rem;
+    box-shadow: 0 8px 18px rgba(18, 107, 75, 0.18);
+    font-size: 0.95rem;
+}
+
+.secure-note {
+    font-size: 0.82rem;
+}

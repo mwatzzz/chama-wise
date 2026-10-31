@@ -112,4 +112,34 @@ foreach ($tables as $name => $sql) {
     fwrite(STDOUT, "Ensured {$name}.\n");
 }
 
+$meetingColumns = [
+    'document_path' => 'ALTER TABLE meetings ADD COLUMN document_path VARCHAR(255) NULL AFTER minutes',
+    'document_name' => 'ALTER TABLE meetings ADD COLUMN document_name VARCHAR(255) NULL AFTER document_path',
+    'document_mime' => 'ALTER TABLE meetings ADD COLUMN document_mime VARCHAR(100) NULL AFTER document_name',
+];
+
+foreach ($meetingColumns as $column => $sql) {
+    $columnExists = db()->query("SHOW COLUMNS FROM meetings LIKE '{$column}'")->fetch();
+    if (!$columnExists) {
+        db()->exec($sql);
+        fwrite(STDOUT, "Added meetings.{$column}.\n");
+    }
+}
+
+$loanColumns = [
+    'rejection_reason' => 'ALTER TABLE loans ADD COLUMN rejection_reason VARCHAR(255) NULL AFTER status',
+    'first_approved_by' => 'ALTER TABLE loans ADD COLUMN first_approved_by INT UNSIGNED NULL AFTER approved_by',
+    'first_approval_date' => 'ALTER TABLE loans ADD COLUMN first_approval_date DATE NULL AFTER first_approved_by',
+    'second_approved_by' => 'ALTER TABLE loans ADD COLUMN second_approved_by INT UNSIGNED NULL AFTER first_approval_date',
+    'second_approval_date' => 'ALTER TABLE loans ADD COLUMN second_approval_date DATE NULL AFTER second_approved_by',
+];
+
+foreach ($loanColumns as $column => $sql) {
+    $columnExists = db()->query("SHOW COLUMNS FROM loans LIKE '{$column}'")->fetch();
+    if (!$columnExists) {
+        db()->exec($sql);
+        fwrite(STDOUT, "Added loans.{$column}.\n");
+    }
+}
+
 fwrite(STDOUT, "Phase 2 database migration completed.\n");

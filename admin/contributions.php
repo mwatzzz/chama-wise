@@ -98,9 +98,7 @@ require ROOT_PATH . '/includes/header.php';
             <a class="admin-nav-link" href="<?php echo e(url('admin/loans.php')); ?>"><span>&#9633;</span> Loans</a>
             <a class="admin-nav-link" href="<?php echo e(url('admin/repayments.php')); ?>"><span>&#8646;</span> Repayments</a>
             <a class="admin-nav-link" href="<?php echo e(url('admin/meetings.php')); ?>"><span>&#9635;</span> Meetings</a>
-            <a class="admin-nav-link" href="#"><span>&#128196;</span> Documents</a>
             <a class="admin-nav-link" href="<?php echo e(url('admin/reports.php')); ?>"><span>&#9646;</span> Reports</a>
-            <a class="admin-nav-link" href="#"><span>&#9881;</span> Settings</a>
         </nav>
         <a class="admin-nav-link admin-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span>&#10132;</span> Logout</a>
     </aside>

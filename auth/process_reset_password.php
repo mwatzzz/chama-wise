@@ -13,7 +13,7 @@ $token = trim((string) ($_POST['token'] ?? ''));
 $password = (string) ($_POST['password'] ?? '');
 $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
 $account = find_account_by_reset_token($token);
-$validToken = $account && !empty($account['reset_expires']) && new DateTimeImmutable($account['reset_expires']) >= new DateTimeImmutable();
+$validToken = $account && is_valid_password_reset($account);
 
 if (!$validToken) {
     flash_set('error', 'This password reset link is invalid or has expired.');

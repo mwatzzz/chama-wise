@@ -144,6 +144,24 @@ function destroy_session(): void
     session_destroy();
 }
 
+function is_valid_password_reset(array $account): bool
+{
+    if (($account['status'] ?? '') !== 'active') {
+        return false;
+    }
+
+    $expires = (string) ($account['reset_expires'] ?? '');
+    if ($expires === '') {
+        return false;
+    }
+
+    try {
+        return new DateTimeImmutable($expires) >= new DateTimeImmutable();
+    } catch (Exception $exception) {
+        return false;
+    }
+}
+
 function create_password_reset(array $account): string
 {
     $token = bin2hex(random_bytes(32));
@@ -169,6 +187,75 @@ function create_password_reset(array $account): string
     return $token;
 }
 
+function send_password_reset_email(array $account, string $resetUrl): bool
+{
+    $mailer = strtolower((string) env('MAIL_MAILER', 'mail'));
+    $fromAddress = trim((string) env('MAIL_FROM_ADDRESS', 'noreply@localhost'));
+    $fromName = trim((string) env('MAIL_FROM_NAME', APP_NAME));
+    $subject = 'Reset your ' . APP_NAME . ' password';
+    $message = "Hello {$account['name']},\r\n\r\n" .
+        "We received a request to reset your password for " . APP_NAME . ".\r\n" .
+        "Use the link below to create a new password:\r\n\r\n" .
+        $resetUrl . "\r\n\r\n" .
+        "This link is valid for 1 hour. If you did not request this, you can ignore this email.\r\n\r\n" .
+        "Regards,\r\n" . APP_NAME;
+
+    $headers = [
+        'From: ' . $fromName . ' <' . $fromAddress . '>',
+        'Reply-To: ' . $fromAddress,
+        'X-Mailer: ChamaWise',
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=UTF-8',
+    ];
+
+    if ($mailer === 'smtp') {
+        $autoload = dirname(__DIR__) . '/vendor/autoload.php';
+        if (!is_file($autoload)) {
+            error_log('Password reset email unavailable: run composer install.');
+            return false;
+        }
+        require_once $autoload;
+
+        $smtpHost = trim((string) env('MAIL_HOST', ''));
+        $smtpPort = (int) env('MAIL_PORT', '587');
+        $smtpUser = trim((string) env('MAIL_USERNAME', ''));
+        $smtpPass = (string) env('MAIL_PASSWORD', '');
+        $smtpEncryption = strtolower(trim((string) env('MAIL_ENCRYPTION', 'tls')));
+
+        if ($smtpHost === '' || $smtpPort < 1 || $smtpPort > 65535 ||
+            !in_array($smtpEncryption, ['tls', 'ssl'], true) ||
+            ($smtpUser !== '' && $smtpPass === '')) {
+            error_log('Password reset email unavailable: check SMTP configuration.');
+            return false;
+        }
+
+        try {
+            $email = new \PHPMailer\PHPMailer\PHPMailer(true);
+            $email->isSMTP();
+            $email->Host = $smtpHost;
+            $email->Port = $smtpPort;
+            $email->SMTPAuth = $smtpUser !== '';
+            $email->Username = $smtpUser;
+            $email->Password = $smtpPass;
+            $email->SMTPSecure = $smtpEncryption === 'ssl'
+                ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS
+                : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            $email->Timeout = 15;
+            $email->CharSet = 'UTF-8';
+            $email->setFrom($fromAddress, $fromName);
+            $email->addAddress($account['email'], $account['name']);
+            $email->Subject = $subject;
+            $email->Body = $message;
+            return $email->send();
+        } catch (\PHPMailer\PHPMailer\Exception $exception) {
+            error_log('Password reset SMTP delivery failed. Check mail server settings and credentials.');
+            return false;
+        }
+    }
+
+    return mail($account['email'], $subject, $message, implode("\r\n", $headers));
+}
+
 function find_account_by_reset_token(string $token): ?array
 {
     if ($token === '') {
@@ -187,7 +274,9 @@ function find_account_by_reset_token(string $token): ?array
     $member = $stmt->fetch();
     if ($member) {
         $member['account_type'] = 'Member';
-        return $member;
+        if (($member['status'] ?? '') === 'active') {
+            return $member;
+        }
     }
 
     $stmt = db()->prepare(
@@ -200,7 +289,9 @@ function find_account_by_reset_token(string $token): ?array
     $admin = $stmt->fetch();
     if ($admin) {
         $admin['account_type'] = 'Admin';
-        return $admin;
+        if (($admin['status'] ?? '') === 'active') {
+            return $admin;
+        }
     }
 
     return null;

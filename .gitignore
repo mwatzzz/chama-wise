@@ -5,3 +5,5 @@ Thumbs.db
 /vendor/
 /reports/pdf/*.pdf
 /uploads/profile-pictures/*
+/uploads/meeting-documents/*
+!/uploads/meeting-documents/.htaccess

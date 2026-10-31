@@ -32,9 +32,14 @@ $user = current_user();
                             <li class="nav-item"><a class="btn btn-brand" href="<?php echo e(url('auth/register.php')); ?>">Create Account</a></li>
                         <?php elseif ($navType === 'member'): ?>
                             <li class="nav-item"><a class="nav-link" href="<?php echo e(url('member/dashboard.php')); ?>">Dashboard</a></li>
+                            <li class="nav-item"><a class="nav-link" href="<?php echo e(url('member/profile.php')); ?>">My Profile</a></li>
+                            <li class="nav-item"><a class="nav-link" href="<?php echo e(url('member/investments.php')); ?>">Investment Planning</a></li>
                             <li class="nav-item"><a class="nav-link" href="<?php echo e(url('auth/logout.php')); ?>">Logout</a></li>
                         <?php elseif ($navType === 'admin'): ?>
                             <li class="nav-item"><a class="nav-link" href="<?php echo e(url('admin/dashboard.php')); ?>">Dashboard</a></li>
+                            <li class="nav-item"><a class="nav-link" href="<?php echo e(url('admin/investments.php')); ?>">Investment Planning</a></li>
+                            <li class="nav-item"><a class="nav-link" href="<?php echo e(url('admin/reports.php')); ?>">Reports</a></li>
+                            <li class="nav-item"><a class="nav-link" href="<?php echo e(url('admin/settings.php')); ?>">Financial Settings</a></li>
                             <li class="nav-item"><a class="nav-link" href="<?php echo e(url('auth/logout.php')); ?>">Logout</a></li>
                         <?php endif; ?>
                     </ul>

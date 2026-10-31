@@ -1,0 +1,6 @@
+{
+    "require": {
+        "phpmailer/phpmailer": "^6.10",
+        "openspout/openspout": "^3.7.4"
+    }
+}

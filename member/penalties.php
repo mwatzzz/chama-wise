@@ -31,7 +31,7 @@ require ROOT_PATH . '/includes/header.php';
         <a class="member-nav-link active" href="<?php echo e(url('member/penalties.php')); ?>"><span>&#9888;</span> Penalties</a>
         <a class="member-nav-link" href="<?php echo e(url('member/meetings.php')); ?>"><span>&#9635;</span> Meetings</a>
         <a class="member-nav-link" href="<?php echo e(url('member/ai_advisor.php')); ?>"><span>&#10022;</span> AI Advisor</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/dashboard.php')); ?>"><span>&#9679;</span> Profile</a>
+        <a class="member-nav-link" href="<?php echo e(url('member/profile.php')); ?>"><span>&#9679;</span> Profile</a>
     </nav><a class="member-nav-link member-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span>&#10132;</span> Logout</a></aside>
     <section class="member-content">
         <div class="member-breadcrumb">Dashboard <span>&#8250;</span> Penalties</div>

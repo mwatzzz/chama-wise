@@ -6,7 +6,7 @@ require_once dirname(__DIR__) . '/config/app.php';
 
 $token = trim((string) ($_GET['token'] ?? ''));
 $account = find_account_by_reset_token($token);
-$validToken = $account && !empty($account['reset_expires']) && new DateTimeImmutable($account['reset_expires']) >= new DateTimeImmutable();
+$validToken = $account && is_valid_password_reset($account);
 
 $pageTitle = 'Reset Password | ' . APP_NAME;
 $navType = 'auth';

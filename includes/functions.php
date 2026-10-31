@@ -7,6 +7,65 @@ function e(?string $value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
+function is_chama_question(string $question): bool
+{
+    $question = strtolower(trim($question));
+    if ($question === '') {
+        return false;
+    }
+
+    $question = preg_replace('/[^a-z0-9\s]/i', ' ', $question) ?? $question;
+    $question = preg_replace('/\s+/', ' ', $question);
+
+    if (preg_match('/\b(?:answer|respond|reply|speak|write)\b.{0,40}\b(?:in|using)\s+(?:english|swahili|kiswahili)\b|\buse\s+(?:english|swahili|kiswahili)\b|\bswitch\s+to\s+(?:english|swahili|kiswahili)\b|\b(?:english|swahili|kiswahili)\s+(?:please|only)\b/i', $question) === 1) {
+        return true;
+    }
+
+    $keywords = [
+        'chama',
+        'contribution', 'contributions', 'contribute', 'saving', 'savings', 'save',
+        'loan', 'loans', 'borrow', 'debt',
+        'repay', 'repayment', 'repayments', 'payment', 'payments', 'pay',
+        'penalty', 'penalties', 'late', 'overdue', 'missed',
+        'balance', 'outstanding', 'owe', 'owing', 'amount', 'budget',
+        'investment', 'investments', 'investing', 'portfolio', 'projected return', 'projected gain',
+        'compound', 'compound growth', 'diversification', 'liquidity', 'inflation', 'risk', 'risks', 'fees',
+        'wealth', 'unit trust', 'fixed deposit', 'money market', 'treasury bill', 'government bond',
+        'meeting', 'meetings', 'member', 'members', 'membership',
+        'due', 'date', 'schedule', 'plan', 'advice', 'financial', 'finance',
+        'history', 'record', 'records', 'treasury', 'fund', 'installment', 'instalment',
+        'mchango', 'michango', 'mchango wa mwezi', 'akiba', 'mkopo', 'mikopo', 'kula', 'kufanya',
+        'malipo', 'malipo ya mwezi', 'deni', 'kiasi', 'kiasi kilichobaki', 'ada', 'penalti',
+        'penalti za kuchelewa', 'ratiba', 'mpango', 'ushauri', 'mali', 'fedha', 'mwanachama',
+        'mwanachama wa chama', 'kazi ya chama', 'mkopo wa chama', 'suluhisho la malipo',
+        'hali ya uanachama', 'mikutano', 'mikutano ya chama', 'jumla ya mchango', 'mchango wa mwaka',
+        'kazi ya chama', 'mchango wa mwezi', 'mpango wa malipo', 'mwili', 'mchango wa chama'
+    ];
+
+    foreach ($keywords as $keyword) {
+        if (str_contains($question, (string) $keyword)) {
+            return true;
+        }
+    }
+
+    $phrases = [
+        'repayment plan', 'loan balance', 'contribution history', 'payment history', 'loan schedule',
+        'repayment schedule', 'savings goal', 'penalty due', 'meeting minutes', 'membership status',
+        'outstanding balance', 'mpango wa malipo', 'kiasi kilichobaki', 'mchango wa mwezi',
+        'historia ya mchango', 'historia ya malipo', 'mkopo wa chama', 'penalti ya kuchelewa',
+        'mchango wa mwaka', 'kiasi cha deni', 'hali ya mwanachama', 'ratiba ya malipo', 'mpango wa akiba',
+        'michango ya mwezi', 'mchango wa chama'
+    ];
+
+    foreach ($phrases as $phrase) {
+        if (str_contains($question, $phrase)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function url(string $path = ''): string
 {
     $base = APP_BASE === '' ? '' : APP_BASE;
@@ -117,6 +176,22 @@ function establish_session(int $userId, string $name, string $email, string $rol
     $_SESSION['name'] = $name;
     $_SESSION['email'] = $email;
     $_SESSION['role'] = $role;
+    $_SESSION['last_activity'] = time();
+}
+
+function enforce_session_timeout(): void
+{
+    if (empty($_SESSION['user_id']) || empty($_SESSION['role'])) {
+        return;
+    }
+
+    $lastActivity = (int) ($_SESSION['last_activity'] ?? time());
+    if (time() - $lastActivity >= SESSION_IDLE_TIMEOUT) {
+        destroy_session();
+        return;
+    }
+
+    $_SESSION['last_activity'] = time();
 }
 
 function find_account_by_email(string $email): ?array
@@ -192,6 +267,7 @@ function ensure_contributions_table(): void
         ['name' => 'Cash', 'code' => 'cash'],
         ['name' => 'Bank Transfer', 'code' => 'bank_transfer'],
         ['name' => 'Mobile Money', 'code' => 'mobile_money'],
+        ['name' => 'M-Pesa Daraja', 'code' => 'daraja'],
     ] as $paymentMethod) {
         $paymentMethodStmt->execute($paymentMethod);
     }
@@ -201,6 +277,7 @@ function ensure_contributions_table(): void
             contribution_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
             member_id INT UNSIGNED NOT NULL,
             amount DECIMAL(12, 2) NOT NULL,
+            currency_code VARCHAR(10) NOT NULL DEFAULT \'KES\',
             payment_method_id INT UNSIGNED NULL,
             contribution_date DATE NOT NULL,
             status VARCHAR(20) NOT NULL DEFAULT \'recorded\',
@@ -227,5 +304,82 @@ function ensure_contributions_table(): void
         db()->exec('ALTER TABLE contributions ADD CONSTRAINT fk_contributions_payment_method FOREIGN KEY (payment_method_id) REFERENCES payment_methods (payment_method_id)');
     }
 
+    $currencyColumn = db()->query("SHOW COLUMNS FROM contributions LIKE 'currency_code'")->fetch();
+    if (!$currencyColumn) {
+        db()->exec("ALTER TABLE contributions ADD COLUMN currency_code VARCHAR(10) NOT NULL DEFAULT 'KES' AFTER amount");
+    }
+
+    $meetingColumns = [
+        'document_path' => 'ALTER TABLE meetings ADD COLUMN document_path VARCHAR(255) NULL AFTER minutes',
+        'document_name' => 'ALTER TABLE meetings ADD COLUMN document_name VARCHAR(255) NULL AFTER document_path',
+        'document_mime' => 'ALTER TABLE meetings ADD COLUMN document_mime VARCHAR(100) NULL AFTER document_name',
+    ];
+    foreach ($meetingColumns as $column => $sql) {
+        if (!db()->query("SHOW COLUMNS FROM meetings LIKE '{$column}'")->fetch()) {
+            db()->exec($sql);
+        }
+    }
+
     $checked = true;
+}
+
+function ensure_loan_penalties_schema(): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    if (!db()->query("SHOW COLUMNS FROM loans LIKE 'due_date'")->fetch()) {
+        db()->exec('ALTER TABLE loans ADD COLUMN due_date DATE NULL AFTER approval_date');
+    }
+    $loanStatusColumn = db()->query("SHOW COLUMNS FROM loans LIKE 'status'")->fetch();
+    if ($loanStatusColumn && preg_match('/^varchar\((\d+)\)$/i', (string) $loanStatusColumn['Type'], $statusLength) && (int) $statusLength[1] < 32) {
+        db()->exec("ALTER TABLE loans MODIFY status VARCHAR(32) NOT NULL DEFAULT 'pending'");
+    }
+    db()->exec("UPDATE loans SET status = 'pending_second_approval' WHERE status = 'pending_second_appro'");
+    if (!db()->query("SHOW COLUMNS FROM penalties LIKE 'loan_id'")->fetch()) {
+        db()->exec('ALTER TABLE penalties ADD COLUMN loan_id INT UNSIGNED NULL AFTER contribution_id');
+    }
+    if (!db()->query("SHOW INDEX FROM penalties WHERE Key_name = 'uq_penalties_loan'")->fetch()) {
+        db()->exec('ALTER TABLE penalties ADD UNIQUE KEY uq_penalties_loan (loan_id)');
+    }
+
+    $checked = true;
+}
+
+function ensure_loan_member_view(): void
+{
+    try {
+        db()->query('SELECT 1 FROM loan_member_view LIMIT 1');
+        return;
+    } catch (PDOException $exception) {
+        db()->exec(
+            'CREATE VIEW loan_member_view AS
+            SELECT
+                l.loan_id,
+                l.member_id,
+                m.name AS member_name,
+                m.email AS member_email,
+                m.phone AS member_phone,
+                l.requested_amount,
+                l.approved_amount,
+                l.interest_rate,
+                l.outstanding_balance,
+                l.purpose,
+                l.notes,
+                l.status,
+                l.rejection_reason,
+                l.application_date,
+                l.approval_date,
+                l.approved_by,
+                l.first_approved_by,
+                l.first_approval_date,
+                l.second_approved_by,
+                l.second_approval_date,
+                l.created_at
+            FROM loans l
+            INNER JOIN members m ON m.member_id = l.member_id'
+        );
+    }
 }
