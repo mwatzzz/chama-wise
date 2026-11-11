@@ -6,10 +6,10 @@ require_once dirname(__DIR__) . '/config/app.php';
 require_admin();
 
 $search = trim((string) ($_GET['search'] ?? ''));
-$sql = 'SELECT member_id, name, phone, email, joined_date, status FROM members';
+$sql = "SELECT member_id, name, phone, email, joined_date, status FROM members WHERE status <> 'erased'";
 $params = [];
 if ($search !== '') {
-    $sql .= ' WHERE name LIKE :search OR phone LIKE :search OR email LIKE :search';
+    $sql .= ' AND (name LIKE :search OR phone LIKE :search OR email LIKE :search)';
     $params['search'] = '%' . $search . '%';
 }
 $sql .= ' ORDER BY member_id DESC';
@@ -24,18 +24,7 @@ require ROOT_PATH . '/includes/header.php';
 ?>
 
 <div class="admin-layout">
-    <aside class="admin-sidebar">
-        <nav aria-label="Admin navigation">
-            <a class="admin-nav-link" href="<?php echo e(url('admin/dashboard.php')); ?>"><span aria-hidden="true">&#8962;</span> Dashboard</a>
-            <a class="admin-nav-link active" href="<?php echo e(url('admin/members.php')); ?>"><span aria-hidden="true">&#128101;</span> Members</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/contributions.php')); ?>"><span aria-hidden="true">&#9776;</span> Contributions</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/loans.php')); ?>"><span aria-hidden="true">&#9633;</span> Loans</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/repayments.php')); ?>"><span aria-hidden="true">&#8646;</span> Repayments</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/meetings.php')); ?>"><span aria-hidden="true">&#9635;</span> Meetings</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/reports.php')); ?>"><span aria-hidden="true">&#9646;</span> Reports</a>
-        </nav>
-        <a class="admin-nav-link admin-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span aria-hidden="true">&#10132;</span> Logout</a>
-    </aside>
+    <?php require ROOT_PATH . '/includes/admin_sidebar.php'; ?>
 
     <section class="admin-content">
         <div class="admin-heading">

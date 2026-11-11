@@ -95,14 +95,7 @@ $bodyClass = 'dashboard-body';
 require ROOT_PATH . '/includes/header.php';
 ?>
 <div class="admin-layout">
-    <aside class="admin-sidebar"><nav aria-label="Admin navigation">
-        <a class="admin-nav-link" href="<?php echo e(url('admin/dashboard.php')); ?>"><span>&#8962;</span> Dashboard</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/members.php')); ?>"><span>&#128101;</span> Members</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/contributions.php')); ?>"><span>&#9776;</span> Contributions</a>
-        <a class="admin-nav-link active" href="<?php echo e(url('admin/repayments.php')); ?>"><span>&#8646;</span> Repayments</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/loans.php')); ?>"><span>&#9633;</span> Loans</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/penalties.php')); ?>"><span>&#9888;</span> Penalties</a>
-    </nav><a class="admin-nav-link admin-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span>&#10132;</span> Logout</a></aside>
+    <?php require ROOT_PATH . '/includes/admin_sidebar.php'; ?>
     <section class="admin-content">
         <div class="admin-heading"><div><p class="eyebrow mb-2">Loan Management</p><h1>Repayments</h1><p>Record repayments and keep loan balances current.</p></div><a class="btn btn-brand" href="<?php echo e(url('admin/dashboard.php')); ?>">&#8592; Dashboard</a></div>
         <div class="contribution-layout">

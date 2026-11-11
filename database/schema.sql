@@ -466,3 +466,118 @@ CREATE TABLE IF NOT EXISTS ai_chat_messages (
   KEY idx_ai_messages_session (session_id),
   CONSTRAINT fk_ai_messages_session FOREIGN KEY (session_id) REFERENCES ai_advice_sessions (session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ai_member_daily_usage (
+  member_id INT UNSIGNED NOT NULL,
+  usage_date DATE NOT NULL,
+  request_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (member_id, usage_date),
+  CONSTRAINT fk_ai_usage_member FOREIGN KEY (member_id) REFERENCES members (member_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS auth_login_attempts (
+  email_hash CHAR(64) NOT NULL,
+  ip_hash CHAR(64) NOT NULL,
+  window_started_at DATETIME NOT NULL,
+  failed_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  locked_until DATETIME NULL,
+  PRIMARY KEY (email_hash, ip_hash),
+  KEY idx_auth_attempts_locked_until (locked_until),
+  KEY idx_auth_attempts_window (window_started_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS sms_campaigns (
+  campaign_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  created_by INT UNSIGNED NULL,
+  category VARCHAR(60) NOT NULL,
+  template_key VARCHAR(60) NOT NULL,
+  audience_type VARCHAR(40) NOT NULL,
+  provider VARCHAR(30) NOT NULL,
+  submission_key CHAR(64) NOT NULL,
+  message_body TEXT NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (campaign_id),
+  UNIQUE KEY uq_sms_campaign_submission (submission_key),
+  KEY idx_sms_campaign_created (created_at),
+  KEY idx_sms_campaign_status (status),
+  CONSTRAINT fk_sms_campaign_admin FOREIGN KEY (created_by) REFERENCES admins (admin_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS sms_campaign_batches (
+  batch_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  campaign_id BIGINT UNSIGNED NOT NULL,
+  batch_number SMALLINT UNSIGNED NOT NULL,
+  provider VARCHAR(30) NOT NULL,
+  tracking_id VARCHAR(80) NULL,
+  bulk_id VARCHAR(120) NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'pending',
+  response_code VARCHAR(40) NULL,
+  safe_response_message VARCHAR(255) NULL,
+  started_at DATETIME NULL,
+  completed_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (batch_id),
+  UNIQUE KEY uq_sms_campaign_batch_number (campaign_id, batch_number),
+  UNIQUE KEY uq_sms_batch_tracking (tracking_id),
+  KEY idx_sms_batch_bulk (provider, bulk_id),
+  KEY idx_sms_batch_status (status),
+  CONSTRAINT fk_sms_batch_campaign FOREIGN KEY (campaign_id) REFERENCES sms_campaigns (campaign_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS sms_campaign_recipients (
+  recipient_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  campaign_id BIGINT UNSIGNED NOT NULL,
+  batch_id BIGINT UNSIGNED NULL,
+  member_id INT UNSIGNED NULL,
+  recipient_name VARCHAR(120) NOT NULL,
+  normalized_phone VARCHAR(24) NOT NULL,
+  rendered_message TEXT NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'pending',
+  provider_reference VARCHAR(120) NULL,
+  response_code VARCHAR(40) NULL,
+  safe_response_message VARCHAR(255) NULL,
+  failure_reason VARCHAR(255) NULL,
+  last_dlr_fingerprint CHAR(64) NULL,
+  last_dlr_status VARCHAR(24) NULL,
+  sent_at DATETIME NULL,
+  delivered_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (recipient_id),
+  UNIQUE KEY uq_sms_campaign_recipient_phone (campaign_id, normalized_phone),
+  KEY idx_sms_recipient_batch (batch_id, status),
+  KEY idx_sms_recipient_member (member_id),
+  KEY idx_sms_recipient_phone (normalized_phone),
+  KEY idx_sms_recipient_status (status),
+  CONSTRAINT fk_sms_recipient_campaign FOREIGN KEY (campaign_id) REFERENCES sms_campaigns (campaign_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_sms_recipient_batch FOREIGN KEY (batch_id) REFERENCES sms_campaign_batches (batch_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_sms_recipient_member FOREIGN KEY (member_id) REFERENCES members (member_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS member_erasure_audit (
+  audit_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  member_id INT UNSIGNED NOT NULL,
+  admin_id INT UNSIGNED NOT NULL,
+  erased_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (audit_id),
+  KEY idx_member_erasure_audit_member (member_id, erased_at),
+  KEY idx_member_erasure_audit_admin (admin_id, erased_at),
+  CONSTRAINT fk_member_erasure_audit_member FOREIGN KEY (member_id) REFERENCES members (member_id),
+  CONSTRAINT fk_member_erasure_audit_admin FOREIGN KEY (admin_id) REFERENCES admins (admin_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS member_erasure_file_cleanup (
+  cleanup_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  member_id INT UNSIGNED NOT NULL,
+  relative_path VARCHAR(255) NOT NULL,
+  attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (cleanup_id),
+  UNIQUE KEY uq_member_erasure_file_path (relative_path),
+  KEY idx_member_erasure_file_member (member_id, cleanup_id),
+  CONSTRAINT fk_member_erasure_file_member FOREIGN KEY (member_id) REFERENCES members (member_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -159,6 +159,7 @@ $verifiedInvestmentTotal = (float) $paidInvestmentStmt->fetchColumn();
 $paymentHistoryStmt = db()->prepare(
     'SELECT p.payment_id, p.transaction_reference, p.amount, p.phone_number, p.status,
             p.mpesa_receipt_number, p.request_result_description, p.callback_result_description,
+            p.checkout_request_id,
             p.callback_result_code, p.created_at, p.verified_at,
             COALESCE(g.title, o.title, gp.title, \'Investment\') AS investment_title,
             a.amount AS allocated_amount
@@ -233,16 +234,7 @@ $bodyClass = 'dashboard-body';
 require ROOT_PATH . '/includes/header.php';
 ?>
 <div class="member-layout">
-    <aside class="member-sidebar"><nav aria-label="Member navigation">
-        <a class="member-nav-link" href="<?php echo e(url('member/dashboard.php')); ?>"><span>&#8962;</span> Dashboard</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/contributions.php')); ?>"><span>&#9776;</span> Contributions</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/loans.php')); ?>"><span>&#9633;</span> Loans</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/repayments.php')); ?>"><span>&#8646;</span> Loan Repayment</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/penalties.php')); ?>"><span>&#9888;</span> Penalties</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/meetings.php')); ?>"><span>&#9635;</span> Meetings</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/ai_advisor.php')); ?>"><span>&#10022;</span> AI Advisor</a>
-        <a class="member-nav-link active" href="<?php echo e(url('member/investments.php')); ?>"><span>&#9679;</span> Investments</a>
-    </nav><a class="member-nav-link member-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span>&#10132;</span> Logout</a></aside>
+    <?php require ROOT_PATH . '/includes/member_sidebar.php'; ?>
     <section class="member-content">
         <div class="member-breadcrumb">Dashboard <span>&#8250;</span> Investment Planning</div>
         <div class="member-heading"><div><h1>Investment Planning</h1><p>Build simulated goals and review estimates in KES.</p></div></div>
@@ -295,8 +287,8 @@ require ROOT_PATH . '/includes/header.php';
                         <tr>
                             <td><?php echo e($payment['investment_title']); ?></td>
                             <td>KES <?php echo e(number_format((float) $payment['amount'], 2)); ?></td>
-                            <td><span class="badge text-bg-<?php echo $payment['status'] === 'successful' ? 'success' : ($payment['status'] === 'failed' ? 'danger' : 'warning'); ?>"><?php echo e(ucfirst($payment['status'])); ?></span>
-                                <?php if ($payment['status'] === 'pending'): ?><small class="d-block">Awaiting Daraja verification</small><?php endif; ?>
+                            <td><span class="badge text-bg-<?php echo e(daraja_payment_status_class((string) $payment['status'])); ?>"><?php echo e(daraja_payment_status_label((string) $payment['status'], !empty($payment['checkout_request_id']))); ?></span>
+                                <?php if ($payment['status'] === 'pending'): ?><small class="d-block">Awaiting customer approval and Daraja verification</small><?php endif; ?>
                             </td>
                             <td><strong><?php echo e($payment['transaction_reference']); ?></strong>
                                 <?php if ($payment['mpesa_receipt_number']): ?><small class="d-block">M-Pesa receipt: <?php echo e($payment['mpesa_receipt_number']); ?></small><?php endif; ?>

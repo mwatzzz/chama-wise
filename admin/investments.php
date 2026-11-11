@@ -185,18 +185,7 @@ $bodyClass = 'dashboard-body';
 require ROOT_PATH . '/includes/header.php';
 ?>
 <div class="admin-layout">
-    <aside class="admin-sidebar"><nav aria-label="Admin navigation">
-        <a class="admin-nav-link" href="<?php echo e(url('admin/dashboard.php')); ?>"><span>&#8962;</span> Dashboard</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/members.php')); ?>"><span>&#128101;</span> Members</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/contributions.php')); ?>"><span>&#9776;</span> Contributions</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/loans.php')); ?>"><span>&#9633;</span> Loans</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/repayments.php')); ?>"><span>&#8646;</span> Repayments</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/penalties.php')); ?>"><span>&#9888;</span> Penalties</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/meetings.php')); ?>"><span>&#9635;</span> Meetings</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/reports.php')); ?>"><span>&#9646;</span> Reports</a>
-        <a class="admin-nav-link active" href="<?php echo e(url('admin/investments.php')); ?>"><span>&#9679;</span> Investments</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/settings.php')); ?>"><span>&#9881;</span> Settings</a>
-    </nav><a class="admin-nav-link admin-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span>&#10132;</span> Logout</a></aside>
+    <?php require ROOT_PATH . '/includes/admin_sidebar.php'; ?>
     <section class="admin-content">
         <div class="admin-heading"><div><p class="eyebrow mb-2">Simulation only</p><h1>Investment Planning</h1><p>Manage informational opportunities and view authorized aggregate simulated figures.</p></div></div>
         <div class="contribution-layout">
@@ -288,7 +277,7 @@ require ROOT_PATH . '/includes/header.php';
                         ?>
                         <tr>
                             <td><strong><?php echo e($payment['member_name']); ?></strong><small class="d-block"><?php echo e($payment['member_email']); ?></small><small class="d-block"><?php echo e($payment['investment_title']); ?></small><small class="d-block">Created: <?php echo e($payment['created_at']); ?></small></td>
-                            <td>KES <?php echo e(number_format((float) $payment['amount'], 2)); ?><span class="badge text-bg-<?php echo $payment['status'] === 'successful' ? 'success' : ($payment['status'] === 'failed' ? 'danger' : 'warning'); ?> d-block mt-1"><?php echo e(ucfirst($payment['status'])); ?></span><?php if ($payment['verified_at']): ?><small class="d-block">Verified: <?php echo e($payment['verified_at']); ?></small><?php endif; ?></td>
+                            <td>KES <?php echo e(number_format((float) $payment['amount'], 2)); ?><span class="badge text-bg-<?php echo e(daraja_payment_status_class((string) $payment['status'])); ?> d-block mt-1"><?php echo e(daraja_payment_status_label((string) $payment['status'], !empty($payment['checkout_request_id']))); ?></span><?php if ($payment['verified_at']): ?><small class="d-block">Verified: <?php echo e($payment['verified_at']); ?></small><?php endif; ?></td>
                             <td><strong><?php echo e($payment['transaction_reference']); ?></strong><small class="d-block">Phone: <?php echo e($payment['phone_number']); ?></small><small class="d-block">Checkout: <?php echo e($payment['checkout_request_id'] ?: 'Not available'); ?></small><small class="d-block">Receipt: <?php echo e($payment['mpesa_receipt_number'] ?: 'Not verified'); ?></small><small class="d-block">Request: <?php echo e(($payment['request_result_code'] ?? '—') . ' ' . ($payment['request_result_description'] ?? '')); ?></small></td>
                             <td><?php if ($payment['callback_received_at']): ?><small class="d-block">Received: <?php echo e($payment['callback_received_at']); ?></small><small class="d-block">Result: <?php echo e(($payment['callback_result_code'] ?? '—') . ' ' . ($payment['callback_result_description'] ?? '')); ?></small><small class="d-block">Amount: <?php echo $payment['callback_amount'] === null ? 'Missing' : 'KES ' . e(number_format((float) $payment['callback_amount'], 2)); ?></small><small class="d-block">Phone: <?php echo e($payment['callback_phone_number'] ?: 'Missing'); ?> · Receipt: <?php echo e($payment['callback_receipt_number'] ?: 'Missing'); ?></small><small class="d-block">Payload SHA-256: <?php echo e($payment['callback_payload_hash'] ?: '—'); ?></small><?php else: ?>No callback received<?php endif; ?></td>
                             <td>

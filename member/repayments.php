@@ -62,7 +62,7 @@ $stmt->execute(['member_id' => $user['user_id']]);
 $repayments = $stmt->fetchAll();
 $total = array_sum(array_map(static fn (array $repayment): float => (float) $repayment['amount'], $repayments));
 $darajaStmt = db()->prepare(
-    "SELECT p.transaction_reference, p.related_id, p.amount, p.status,
+    "SELECT p.transaction_reference, p.related_id, p.amount, p.status, p.checkout_request_id,
             p.request_result_description, p.callback_result_description,
             p.mpesa_receipt_number, p.created_at, p.verified_at, l.purpose
      FROM member_daraja_payments p
@@ -80,16 +80,7 @@ $bodyClass = 'dashboard-body';
 require ROOT_PATH . '/includes/header.php';
 ?>
 <div class="member-layout">
-    <aside class="member-sidebar"><nav aria-label="Member navigation">
-        <a class="member-nav-link" href="<?php echo e(url('member/dashboard.php')); ?>"><span>&#8962;</span> Dashboard</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/contributions.php')); ?>"><span>&#9776;</span> Contributions</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/loans.php')); ?>"><span>&#9633;</span> Loans</a>
-        <a class="member-nav-link active" href="<?php echo e(url('member/repayments.php')); ?>"><span>&#8646;</span> Loan Repayment</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/penalties.php')); ?>"><span>&#9888;</span> Penalties</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/meetings.php')); ?>"><span>&#9635;</span> Meetings</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/ai_advisor.php')); ?>"><span>&#10022;</span> AI Advisor</a>
-        <a class="member-nav-link" href="<?php echo e(url('member/profile.php')); ?>"><span>&#9679;</span> Profile</a>
-    </nav><a class="member-nav-link member-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span>&#10132;</span> Logout</a></aside>
+    <?php require ROOT_PATH . '/includes/member_sidebar.php'; ?>
     <section class="member-content">
         <div class="member-breadcrumb">Dashboard <span>&#8250;</span> Loan Repayment</div>
         <div class="member-heading"><div><h1>Loan Repayments</h1><p>Review repayments recorded against your loans.</p></div><span class="pill">Total paid: KES <?php echo e(number_format($total, 2)); ?></span></div>
@@ -114,9 +105,9 @@ require ROOT_PATH . '/includes/header.php';
                         <td><?php echo e((string) $payment['created_at']); ?></td>
                         <td>#<?php echo e((string) $payment['related_id']); ?><?php if (!empty($payment['purpose'])): ?><small class="d-block"><?php echo e((string) $payment['purpose']); ?></small><?php endif; ?></td>
                         <td>KES <?php echo e(number_format((float) $payment['amount'], 2)); ?></td>
-                        <td><span class="table-status"><?php echo e(ucfirst((string) $payment['status'])); ?></span></td>
+                        <td><span class="table-status"><?php echo e(daraja_payment_status_label((string) $payment['status'], !empty($payment['checkout_request_id']))); ?></span></td>
                         <td><?php echo e($payment['mpesa_receipt_number'] ?: 'Pending verification'); ?></td>
-                        <td><?php echo e($payment['callback_result_description'] ?: $payment['request_result_description'] ?: 'Awaiting Daraja update.'); ?></td>
+                        <td><?php if ($payment['status'] === 'review_required'): ?>Daraja verified the payment, but no loan credit was made. Admin review is required.<?php else: ?><?php echo e($payment['callback_result_description'] ?: $payment['request_result_description'] ?: 'Awaiting Daraja update.'); ?><?php endif; ?></td>
                     </tr>
                 <?php endforeach; else: ?>
                     <tr><td colspan="6">No M-Pesa repayment requests yet.</td></tr>

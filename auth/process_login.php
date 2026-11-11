@@ -13,22 +13,32 @@ if (!csrf_verify()) {
     redirect('auth/login.php');
 }
 
+prune_login_attempts();
+
 $email = strtolower(trim((string) ($_POST['email'] ?? '')));
 $password = (string) ($_POST['password'] ?? '');
 
 old_set(['email' => $email]);
 
+if (login_is_rate_limited($email)) {
+    flash_set('error', 'Too many unsuccessful sign-in attempts. Please wait 15 minutes before trying again.');
+    redirect('auth/login.php');
+}
+
 $account = find_account_by_email($email);
 if (!$account || !password_verify($password, (string) $account['password_hash'])) {
+    record_login_failure($email);
     flash_set('error', 'The email or password is incorrect.');
     redirect('auth/login.php');
 }
 
 if (($account['status'] ?? '') !== 'active') {
+    record_login_failure($email);
     flash_set('error', 'Your account is not active. Please contact an administrator.');
     redirect('auth/login.php');
 }
 
+clear_login_failures($email);
 establish_session(
     (int) $account['user_id'],
     (string) $account['name'],

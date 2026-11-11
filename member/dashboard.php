@@ -82,20 +82,7 @@ require ROOT_PATH . '/includes/header.php';
 ?>
 
 <div class="member-layout">
-    <aside class="member-sidebar">
-        <nav aria-label="Member navigation">
-            <a class="member-nav-link active" href="<?php echo e(url('member/dashboard.php')); ?>" aria-current="page"><span aria-hidden="true">&#8962;</span> Dashboard</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/contributions.php')); ?>"><span aria-hidden="true">&#9776;</span> Contributions</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/penalties.php')); ?>"><span aria-hidden="true">&#9888;</span> Penalties</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/loans.php')); ?>"><span aria-hidden="true">&#9633;</span> Loans</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/repayments.php')); ?>"><span aria-hidden="true">&#8646;</span> Loan Repayment</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/meetings.php')); ?>"><span aria-hidden="true">&#9635;</span> Meetings</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/investments.php')); ?>"><span aria-hidden="true">&#9679;</span> Investments</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/ai_advisor.php')); ?>"><span aria-hidden="true">&#10022;</span> AI Advisor</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/profile.php')); ?>"><span aria-hidden="true">&#9679;</span> Profile</a>
-        </nav>
-        <a class="member-nav-link member-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span aria-hidden="true">&#10132;</span> Logout</a>
-    </aside>
+    <?php require ROOT_PATH . '/includes/member_sidebar.php'; ?>
 
     <section class="member-content">
         <div class="member-breadcrumb">Dashboard</div>

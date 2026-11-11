@@ -5,6 +5,13 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/config/app.php';
 require_admin();
 
+try {
+    member_erasure_retry_profile_picture_cleanup(db(), 10);
+} catch (Throwable $exception) {
+    error_log('Member profile-picture cleanup retry failed (' . get_class($exception) . ').');
+    flash_set('error', 'A queued profile-picture cleanup could not be retried. Erased accounts remain inaccessible.');
+}
+
 $memberId = (int) ($_GET['id'] ?? $_POST['member_id'] ?? 0);
 if ($memberId < 1) {
     flash_set('error', 'A valid member was not selected.');
@@ -26,10 +33,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $action = (string) ($_POST['action'] ?? '');
+    if ($member['status'] === 'erased' && in_array($action, ['toggle_status', 'update', 'erase_member'], true)) {
+        flash_set('error', 'An erased member account cannot be reactivated or edited.');
+        redirect('admin/members.php');
+    }
+    if ($action === 'erase_member') {
+        if ((string) ($_POST['confirm_erasure'] ?? '') !== '1') {
+            flash_set('error', 'Confirm the member name and ID before erasing the account.');
+            redirect('admin/member.php?id=' . $memberId);
+        }
+
+        try {
+            $erasure = erase_member_account(
+                db(),
+                $memberId,
+                (int) current_user()['user_id']
+            );
+            $cleanupRetryFailed = false;
+            try {
+                member_erasure_retry_profile_picture_cleanup(db(), 100, $erasure['member_id']);
+                $cleanupRetryFailed = member_erasure_has_pending_profile_picture_cleanup(
+                    db(),
+                    $erasure['member_id']
+                );
+            } catch (Throwable $cleanupException) {
+                error_log('Member profile-picture cleanup failed (' . get_class($cleanupException) . ').');
+                $cleanupRetryFailed = true;
+            }
+            flash_set(
+                $cleanupRetryFailed ? 'error' : 'success',
+                !$cleanupRetryFailed
+                    ? 'Member account permanently erased and anonymized. Financial and audit records were retained.'
+                    : 'Member account erased and anonymized. Its profile picture is inaccessible and queued for automatic cleanup retry.'
+            );
+            redirect('admin/members.php');
+        } catch (MemberErasureBlocked | InvalidArgumentException $exception) {
+            flash_set('error', $exception->getMessage());
+            redirect('admin/member.php?id=' . $memberId);
+        } catch (Throwable $exception) {
+            error_log('Member account erasure failed (' . get_class($exception) . ').');
+            flash_set('error', 'The member account could not be erased. No changes were committed; please try again or contact support.');
+            redirect('admin/member.php?id=' . $memberId);
+        }
+    }
+
     if ($action === 'toggle_status') {
         $newStatus = $member['status'] === 'active' ? 'inactive' : 'active';
-        $stmt = db()->prepare('UPDATE members SET status = :status WHERE member_id = :member_id');
+        $stmt = db()->prepare("UPDATE members SET status = :status WHERE member_id = :member_id AND status <> 'erased'");
         $stmt->execute(['status' => $newStatus, 'member_id' => $memberId]);
+        if ($stmt->rowCount() !== 1) {
+            $statusStmt = db()->prepare('SELECT status FROM members WHERE member_id = :member_id LIMIT 1');
+            $statusStmt->execute(['member_id' => $memberId]);
+            if ($statusStmt->fetchColumn() === 'erased') {
+                flash_set('error', 'An erased member account cannot be reactivated or edited.');
+                redirect('admin/members.php');
+            }
+        }
         flash_set('success', 'Member status updated successfully.');
         redirect('admin/member.php?id=' . $memberId);
     }
@@ -58,13 +117,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('admin/member.php?id=' . $memberId);
         }
 
-        $stmt = db()->prepare('UPDATE members SET name = :name, phone = :phone, email = :email WHERE member_id = :member_id');
+        $stmt = db()->prepare(
+            "UPDATE members
+             SET name = :name, phone = :phone, email = :email
+             WHERE member_id = :member_id AND status <> 'erased'"
+        );
         $stmt->execute([
             'name' => $name,
             'phone' => $phone,
             'email' => $email,
             'member_id' => $memberId,
         ]);
+        if ($stmt->rowCount() !== 1) {
+            $statusStmt = db()->prepare('SELECT status FROM members WHERE member_id = :member_id LIMIT 1');
+            $statusStmt->execute(['member_id' => $memberId]);
+            if ($statusStmt->fetchColumn() === 'erased') {
+                flash_set('error', 'An erased member account cannot be reactivated or edited.');
+                redirect('admin/members.php');
+            }
+        }
         flash_set('success', 'Member details updated successfully.');
         redirect('admin/member.php?id=' . $memberId);
     }
@@ -77,17 +148,7 @@ require ROOT_PATH . '/includes/header.php';
 ?>
 
 <div class="admin-layout">
-    <aside class="admin-sidebar">
-        <nav aria-label="Admin navigation">
-            <a class="admin-nav-link" href="<?php echo e(url('admin/dashboard.php')); ?>"><span>&#8962;</span> Dashboard</a>
-            <a class="admin-nav-link active" href="<?php echo e(url('admin/members.php')); ?>"><span>&#128101;</span> Members</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/contributions.php')); ?>"><span>&#9776;</span> Contributions</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/loans.php')); ?>"><span>&#9633;</span> Loans</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/meetings.php')); ?>"><span>&#9635;</span> Meetings</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/reports.php')); ?>"><span>&#9646;</span> Reports</a>
-        </nav>
-        <a class="admin-nav-link admin-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span>&#10132;</span> Logout</a>
-    </aside>
+    <?php require ROOT_PATH . '/includes/admin_sidebar.php'; ?>
 
     <section class="admin-content">
         <div class="admin-heading">
@@ -100,14 +161,17 @@ require ROOT_PATH . '/includes/header.php';
                 <div class="admin-panel-title"><h2><?php echo e($member['name']); ?></h2><span class="table-status"><?php echo e(ucfirst($member['status'])); ?></span></div>
                 <p class="text-muted">Member ID: <?php echo e((string) $member['member_id']); ?></p>
                 <p class="text-muted">Joined: <?php echo e($member['joined_date']); ?></p>
+                <?php if ($member['status'] !== 'erased'): ?>
                 <form method="post">
                     <?php echo csrf_field(); ?>
                     <input type="hidden" name="member_id" value="<?php echo e((string) $member['member_id']); ?>">
                     <input type="hidden" name="action" value="toggle_status">
                     <button class="btn btn-outline-brand" type="submit"><?php echo $member['status'] === 'active' ? 'Deactivate Member' : 'Activate Member'; ?></button>
                 </form>
+                <?php endif; ?>
             </article>
 
+            <?php if ($member['status'] !== 'erased'): ?>
             <article class="admin-panel member-edit-panel">
                 <h2>Edit Member Information</h2>
                 <form method="post">
@@ -120,6 +184,24 @@ require ROOT_PATH . '/includes/header.php';
                     <button class="btn btn-brand" type="submit">Save Changes</button>
                 </form>
             </article>
+            <?php endif; ?>
+            <?php if ($member['status'] !== 'erased'): ?>
+            <article class="admin-panel">
+                <h2>Delete Member Permanently</h2>
+                <p>This erases the account's personal information and disables login. Financial transactions and required audit history will be retained.</p>
+                <p><strong>Confirm account:</strong> <?php echo e($member['name']); ?> (Member ID #<?php echo e((string) $member['member_id']); ?>)</p>
+                <form method="post">
+                    <?php echo csrf_field(); ?>
+                    <input type="hidden" name="member_id" value="<?php echo e((string) $member['member_id']); ?>">
+                    <input type="hidden" name="action" value="erase_member">
+                    <label class="d-flex align-items-start gap-2">
+                        <input type="checkbox" name="confirm_erasure" value="1" required>
+                        <span>I confirm permanent erasure of this member account.</span>
+                    </label>
+                    <button class="btn btn-danger mt-2" type="submit">Delete Member Permanently</button>
+                </form>
+            </article>
+            <?php endif; ?>
         </div>
     </section>
 </div>

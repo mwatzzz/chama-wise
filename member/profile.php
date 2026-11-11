@@ -50,20 +50,7 @@ require ROOT_PATH . '/includes/header.php';
 ?>
 
 <div class="member-layout">
-    <aside class="member-sidebar">
-        <nav aria-label="Member navigation">
-            <a class="member-nav-link" href="<?php echo e(url('member/dashboard.php')); ?>"><span aria-hidden="true">&#8962;</span> Dashboard</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/contributions.php')); ?>"><span aria-hidden="true">&#9776;</span> Contributions</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/penalties.php')); ?>"><span aria-hidden="true">&#9888;</span> Penalties</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/loans.php')); ?>"><span aria-hidden="true">&#9633;</span> Loans</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/repayments.php')); ?>"><span aria-hidden="true">&#8646;</span> Loan Repayment</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/meetings.php')); ?>"><span aria-hidden="true">&#9635;</span> Meetings</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/investments.php')); ?>"><span aria-hidden="true">&#9679;</span> Investments</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/ai_advisor.php')); ?>"><span aria-hidden="true">&#10022;</span> AI Advisor</a>
-            <a class="member-nav-link active" href="<?php echo e(url('member/profile.php')); ?>"><span aria-hidden="true">&#9679;</span> Profile</a>
-        </nav>
-        <a class="member-nav-link member-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span aria-hidden="true">&#10132;</span> Logout</a>
-    </aside>
+    <?php require ROOT_PATH . '/includes/member_sidebar.php'; ?>
 
     <section class="member-content">
         <div class="member-breadcrumb">Dashboard <span aria-hidden="true">&#8250;</span> Profile</div>
@@ -77,7 +64,7 @@ require ROOT_PATH . '/includes/header.php';
 
         <article class="profile-summary">
             <?php if ($profilePicture): ?>
-                <img class="profile-avatar" src="<?php echo e(url($profilePicture)); ?>" alt="Profile picture">
+                <img class="profile-avatar" src="<?php echo e(url('member/profile_picture.php')); ?>" alt="Profile picture">
             <?php else: ?>
                 <div class="profile-avatar" aria-hidden="true">&#9679;</div>
             <?php endif; ?>
@@ -148,7 +135,7 @@ require ROOT_PATH . '/includes/header.php';
                 <article class="profile-panel" id="profile-picture">
                     <h2>Profile Picture</h2>
                     <?php if ($profilePicture): ?>
-                        <img class="picture-placeholder profile-image" src="<?php echo e(url($profilePicture)); ?>" alt="Profile picture">
+                        <img class="picture-placeholder profile-image" src="<?php echo e(url('member/profile_picture.php')); ?>" alt="Profile picture">
                     <?php else: ?>
                         <div class="picture-placeholder" aria-hidden="true">&#9679;</div>
                     <?php endif; ?>
@@ -172,7 +159,7 @@ require ROOT_PATH . '/includes/header.php';
     </section>
 </div>
 
-<script>
+<script nonce="<?php echo e(CSP_NONCE); ?>">
 document.addEventListener('DOMContentLoaded', () => {
     const tabs = document.querySelectorAll('.profile-tab');
     const panels = document.querySelectorAll('.profile-section');

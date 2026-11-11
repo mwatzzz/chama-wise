@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/config/app.php';
 
-$_SESSION = [];
-
-if (ini_get('session.use_cookies')) {
-    $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'] ?? '', (bool) $params['secure'], (bool) $params['httponly']);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_verify()) {
+    http_response_code(400);
+    echo 'Invalid logout request.';
+    exit;
 }
 
-session_destroy();
+destroy_session();
 redirect('index.php');

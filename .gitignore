@@ -6,4 +6,6 @@ Thumbs.db
 /reports/pdf/*.pdf
 /uploads/profile-pictures/*
 /uploads/meeting-documents/*
+!/uploads/profile-pictures/.htaccess
 !/uploads/meeting-documents/.htaccess
+/tests/.env.test

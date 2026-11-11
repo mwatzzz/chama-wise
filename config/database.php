@@ -10,11 +10,25 @@ function db(): PDO
         return $pdo;
     }
 
-    $host = env('DB_HOST', '127.0.0.1');
-    $port = env('DB_PORT', '3306');
-    $name = env('DB_NAME', 'chama_ai_management_system');
-    $user = env('DB_USER', 'root');
-    $pass = env('DB_PASS', '');
+    $production = strtolower((string) env('APP_ENV', 'development')) === 'production';
+    $host = env('DB_HOST', $production ? null : '127.0.0.1');
+    $port = env('DB_PORT', $production ? null : '3306');
+    $name = env('DB_NAME', $production ? null : 'chama_ai_management_system');
+    $user = env('DB_USER', $production ? null : 'root');
+    $pass = env('DB_PASS', $production ? null : '');
+
+    if ($production && ($host === null || $port === null || $name === null || $user === null || $pass === null || $pass === '')) {
+        error_log('Database configuration is incomplete: production requires explicit DB_HOST, DB_PORT, DB_NAME, DB_USER and non-empty DB_PASS values.');
+        http_response_code(503);
+        echo 'ChamaWise is unavailable because its database configuration is incomplete.';
+        exit;
+    }
+
+    $host = $host ?? '127.0.0.1';
+    $port = $port ?? '3306';
+    $name = $name ?? 'chama_ai_management_system';
+    $user = $user ?? 'root';
+    $pass = $pass ?? '';
 
     $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', $host, $port, $name);
 
@@ -25,6 +39,14 @@ function db(): PDO
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
     } catch (PDOException $exception) {
+        error_log('Database connection failed: ' . $exception->getMessage());
+
+        if ($production) {
+            http_response_code(503);
+            echo 'ChamaWise is temporarily unavailable. Please try again later.';
+            exit;
+        }
+
         $safeHost = htmlspecialchars($host, ENT_QUOTES, 'UTF-8');
         $safePort = htmlspecialchars($port, ENT_QUOTES, 'UTF-8');
         $safeDb = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');

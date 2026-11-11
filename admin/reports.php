@@ -267,15 +267,7 @@ $bodyClass = 'dashboard-body';
 require ROOT_PATH . '/includes/header.php';
 ?>
 <div class="admin-layout">
-    <aside class="admin-sidebar"><nav aria-label="Admin navigation">
-        <a class="admin-nav-link" href="<?php echo e(url('admin/dashboard.php')); ?>"><span>&#8962;</span> Dashboard</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/members.php')); ?>"><span>&#128101;</span> Members</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/contributions.php')); ?>"><span>&#9776;</span> Contributions</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/loans.php')); ?>"><span>&#9633;</span> Loans</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/repayments.php')); ?>"><span>&#8646;</span> Repayments</a>
-        <a class="admin-nav-link" href="<?php echo e(url('admin/meetings.php')); ?>"><span>&#9635;</span> Meetings</a>
-        <a class="admin-nav-link active" href="<?php echo e(url('admin/reports.php')); ?>"><span>&#9646;</span> Reports</a>
-    </nav><a class="admin-nav-link admin-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span>&#10132;</span> Logout</a></aside>
+    <?php require ROOT_PATH . '/includes/admin_sidebar.php'; ?>
     <section class="admin-content">
         <div class="admin-heading"><div><p class="eyebrow mb-2">Treasury Reporting</p><h1><?php echo e($reportTitles[$reportType]); ?></h1><p>Generated from current ChamaWise records. These reports cover all available dates; no date filter is applied.</p></div><a class="btn btn-brand" href="<?php echo e(url('admin/dashboard.php')); ?>">&#8592; Dashboard</a></div>
         <article class="admin-panel report-controls"><form method="get"><label>Report Type<select name="report"><option value="contributions" <?php echo $reportType === 'contributions' ? 'selected' : ''; ?>>Contribution Report</option><option value="loans" <?php echo $reportType === 'loans' ? 'selected' : ''; ?>>Loan Report</option><option value="repayments" <?php echo $reportType === 'repayments' ? 'selected' : ''; ?>>Repayment Report</option><option value="penalties" <?php echo $reportType === 'penalties' ? 'selected' : ''; ?>>Penalty Report</option><option value="summary" <?php echo $reportType === 'summary' ? 'selected' : ''; ?>>Financial Summary</option></select></label><button class="btn btn-brand" type="submit">View Report</button><a class="btn btn-brand" href="<?php echo e(url('admin/reports.php?report=' . $reportType . '&format=xlsx')); ?>">Download Excel (.xlsx)</a><a class="btn btn-outline-brand" href="<?php echo e(url('admin/reports.php?report=' . $reportType . '&format=csv')); ?>">Download CSV</a></form></article>

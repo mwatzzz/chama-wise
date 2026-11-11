@@ -21,23 +21,165 @@ document.addEventListener('DOMContentLoaded', () => {
         const submitButton = form.querySelector('button[type="submit"]');
         let isSubmitting = false;
 
-        form.addEventListener('submit', (event) => {
+        form.addEventListener('submit', async (event) => {
             if (isSubmitting) {
                 event.preventDefault();
                 return;
             }
 
+            event.preventDefault();
+            if (!(messages instanceof HTMLElement) || !(submitButton instanceof HTMLButtonElement)) {
+                form.submit();
+                return;
+            }
+
             isSubmitting = true;
+            const startedAt = performance.now();
+            const formData = new FormData(form);
+            const question = String(formData.get('question') ?? '').trim();
+            const emptyState = messages.querySelector('.ai-empty-state');
+            emptyState?.remove();
+            messages.classList.remove('is-empty');
+            messages.classList.add('has-messages');
+
+            const appendMessage = (className, label, content) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = `ai-message ${className}`;
+                const heading = document.createElement('strong');
+                heading.textContent = label;
+                const paragraph = document.createElement('p');
+                paragraph.textContent = content;
+                const time = document.createElement('small');
+                time.textContent = new Date().toLocaleTimeString();
+                wrapper.append(heading, paragraph, time);
+                messages.append(wrapper);
+                return {wrapper, paragraph, time};
+            };
+
+            appendMessage('ai-message-member', 'You', question);
+            const responseMessage = appendMessage('ai-message-assistant', 'ChamaWise Advisor', 'Checking your records…');
+            responseMessage.paragraph.setAttribute('aria-live', 'off');
+            let firstTokenAt = null;
+            let completed = false;
+
             if (loadingState instanceof HTMLElement) {
                 loadingState.hidden = false;
             }
-            if (messages instanceof HTMLElement) {
-                messages.setAttribute('aria-busy', 'true');
+            messages.setAttribute('aria-busy', 'true');
+            messages.scrollTop = messages.scrollHeight;
+            submitButton.disabled = true;
+            submitButton.textContent = 'Advisor is responding…';
+
+            const handleEvent = (rawEvent) => {
+                let eventName = 'message';
+                const dataLines = [];
+                rawEvent.replace(/\r/g, '').split('\n').forEach((line) => {
+                    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                    if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
+                });
+                if (!dataLines.length) return;
+
+                const data = JSON.parse(dataLines.join('\n'));
+                if (eventName === 'start') {
+                    const sessionField = form.querySelector('[name="session_id"]');
+                    if (sessionField instanceof HTMLInputElement && data.session_id) {
+                        sessionField.value = String(data.session_id);
+                        const nextUrl = new URL(window.location.href);
+                        nextUrl.searchParams.set('session', String(data.session_id));
+                        window.history.replaceState(null, '', nextUrl);
+                    }
+                } else if (eventName === 'token') {
+                    if (firstTokenAt === null) {
+                        firstTokenAt = performance.now();
+                        if (loadingState instanceof HTMLElement) loadingState.hidden = true;
+                        responseMessage.paragraph.textContent = '';
+                    }
+                    responseMessage.paragraph.textContent += String(data.text ?? '');
+                    messages.scrollTop = messages.scrollHeight;
+                } else if (eventName === 'complete') {
+                    completed = true;
+                    if (loadingState instanceof HTMLElement) loadingState.hidden = true;
+                    const firstResponseSeconds = firstTokenAt === null
+                        ? null
+                        : ((firstTokenAt - startedAt) / 1000).toFixed(1);
+                    const totalSeconds = ((performance.now() - startedAt) / 1000).toFixed(1);
+                    const serverTimings = [
+                        Number.isFinite(data.bootstrap_ms) ? `setup ${(data.bootstrap_ms / 1000).toFixed(1)}s` : '',
+                        Number.isFinite(data.context_ms) ? `records ${(data.context_ms / 1000).toFixed(1)}s` : '',
+                        Number.isFinite(data.model_total_ms) ? `model ${(data.model_total_ms / 1000).toFixed(1)}s` : ''
+                    ].filter(Boolean).join(' · ');
+                    responseMessage.time.textContent = (firstResponseSeconds === null
+                        ? `Complete · ${totalSeconds}s`
+                        : `First text ${firstResponseSeconds}s · Complete ${totalSeconds}s`)
+                        + (serverTimings ? ` · ${serverTimings}` : '');
+                    const questionField = form.querySelector('[name="question"]');
+                    if (questionField instanceof HTMLTextAreaElement) questionField.value = '';
+                } else if (eventName === 'error') {
+                    throw new Error(String(data.message || 'The AI advisor could not complete this response.'));
+                }
+            };
+
+            try {
+                const response = await fetch(form.action || window.location.href, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'text/event-stream',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData,
+                    credentials: 'same-origin'
+                });
+                if (!response.ok) {
+                    let message = 'The AI advisor request could not be completed.';
+                    try {
+                        const data = await response.json();
+                        if (data.message) message = data.message;
+                    } catch (_) {
+                        // Keep the safe generic error when the server does not return JSON.
+                    }
+                    throw new Error(message);
+                }
+
+                if (response.body && response.body.getReader) {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    while (true) {
+                        const {value, done} = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, {stream: true});
+                        let boundary;
+                        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                            handleEvent(buffer.slice(0, boundary));
+                            buffer = buffer.slice(boundary + 2);
+                        }
+                    }
+                    buffer += decoder.decode();
+                    if (buffer.trim()) handleEvent(buffer);
+                } else {
+                    const body = await response.text();
+                    body.split(/\n\n/).forEach(handleEvent);
+                }
+                if (!completed) {
+                    throw new Error('The connection ended before the advisor finished. Your question was saved, but no complete answer was received.');
+                }
+            } catch (error) {
+                if (loadingState instanceof HTMLElement) loadingState.hidden = true;
+                const errorMessage = error instanceof Error
+                    ? error.message
+                    : 'The AI advisor connection was interrupted. Please try again.';
+                if (firstTokenAt === null) responseMessage.paragraph.textContent = '';
+                const alert = document.createElement('p');
+                alert.className = 'ai-message-error';
+                alert.setAttribute('role', 'alert');
+                alert.textContent = errorMessage;
+                responseMessage.wrapper.append(alert);
+            } finally {
+                isSubmitting = false;
+                messages.setAttribute('aria-busy', 'false');
+                submitButton.disabled = false;
+                submitButton.textContent = 'Send Question';
                 messages.scrollTop = messages.scrollHeight;
-            }
-            if (submitButton instanceof HTMLButtonElement) {
-                submitButton.disabled = true;
-                submitButton.textContent = 'Preparing answer…';
             }
         });
 

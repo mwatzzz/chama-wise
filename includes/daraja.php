@@ -323,7 +323,74 @@ function daraja_timestamp(): string
     return (new DateTimeImmutable('now', new DateTimeZone('Africa/Nairobi')))->format('YmdHis');
 }
 
-function daraja_api_request(string $url, string $method, ?array $payload = null, ?string $accessToken = null): array
+function daraja_log_event(string $event, array $context = []): void
+{
+    $allowedFields = [
+        'api_operation',
+        'checkout_request_id',
+        'merchant_request_id',
+        'payment_reference',
+        'payment_purpose',
+        'http_status',
+        'processing_result',
+        'error_type',
+    ];
+    $entry = [
+        'event' => $event,
+        'occurred_at' => (new DateTimeImmutable('now', new DateTimeZone('Africa/Nairobi')))->format(DATE_ATOM),
+    ];
+    if (defined('APP_ENV') && APP_ENV === 'test') {
+        $entry['data_label'] = 'TEST DATA';
+    }
+    foreach ($allowedFields as $field) {
+        if (isset($context[$field]) && (is_string($context[$field]) || is_int($context[$field]))) {
+            $entry[$field] = $context[$field];
+        }
+    }
+    error_log('Daraja ' . json_encode($entry, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE));
+}
+
+function daraja_payment_status_label(string $status, bool $hasCheckoutId): string
+{
+    if ($status === 'pending') {
+        return $hasCheckoutId ? 'Pending customer approval / verification' : 'Initiating / awaiting Daraja response';
+    }
+
+    return match ($status) {
+        'successful' => 'Successful',
+        'failed' => 'Failed',
+        'cancelled' => 'Cancelled',
+        'timed_out' => 'Timed out',
+        'review_required' => 'Review required',
+        default => ucfirst(str_replace('_', ' ', $status)),
+    };
+}
+
+function daraja_payment_status_class(string $status): string
+{
+    return match ($status) {
+        'successful' => 'success',
+        'failed', 'cancelled', 'timed_out' => 'danger',
+        default => 'warning',
+    };
+}
+
+function daraja_failure_status(string $resultCode): string
+{
+    return match ($resultCode) {
+        '1032' => 'cancelled',
+        '1037' => 'timed_out',
+        default => 'failed',
+    };
+}
+
+function daraja_api_request(
+    string $url,
+    string $method,
+    ?array $payload = null,
+    ?string $accessToken = null,
+    array $logContext = []
+): array
 {
     $curl = curl_init($url);
     if ($curl === false) {
@@ -353,6 +420,13 @@ function daraja_api_request(string $url, string $method, ?array $payload = null,
     $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     $curlError = curl_error($curl);
     curl_close($curl);
+    $path = parse_url($url, PHP_URL_PATH);
+    $logContext['api_operation'] = is_string($path) ? basename($path) : 'unknown';
+    $logContext['http_status'] = $status;
+    $logContext['processing_result'] = $body === false || $status < 200 || $status >= 300
+        ? 'http_error'
+        : 'http_response_received';
+    daraja_log_event('api_response', $logContext);
     if ($body === false || $status < 200 || $status >= 300) {
         throw new RuntimeException($body === false
             ? 'Daraja Sandbox request failed: ' . ($curlError !== '' ? $curlError : 'network error')
@@ -371,7 +445,7 @@ function daraja_api_request(string $url, string $method, ?array $payload = null,
     return $response;
 }
 
-function daraja_access_token(): string
+function daraja_access_token(array $logContext = []): string
 {
     static $token = null;
     if (is_string($token)) {
@@ -399,6 +473,12 @@ function daraja_access_token(): string
     $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     $curlError = curl_error($curl);
     curl_close($curl);
+    $logContext['api_operation'] = 'oauth_token';
+    $logContext['http_status'] = $status;
+    $logContext['processing_result'] = $body === false || $status < 200 || $status >= 300
+        ? 'http_error'
+        : 'http_response_received';
+    daraja_log_event('api_response', $logContext);
     if ($body === false || $status < 200 || $status >= 300) {
         throw new RuntimeException($body === false
             ? 'Daraja Sandbox authorization failed: ' . ($curlError !== '' ? $curlError : 'network error')
@@ -514,6 +594,10 @@ function start_member_daraja_payment(
     }
 
     $timestamp = daraja_timestamp();
+    $logContext = [
+        'payment_reference' => $reference,
+        'payment_purpose' => $paymentType,
+    ];
     try {
         $response = daraja_api_request(
             'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
@@ -531,7 +615,8 @@ function start_member_daraja_payment(
                 'AccountReference' => $reference,
                 'TransactionDesc' => $paymentType === 'contribution' ? 'ChamaWise contribution' : 'ChamaWise loan repayment',
             ],
-            daraja_access_token()
+            daraja_access_token($logContext),
+            $logContext
         );
     } catch (Throwable $exception) {
         $update = $pdo->prepare(
@@ -543,7 +628,10 @@ function start_member_daraja_payment(
             'description' => mb_substr('Daraja response is unconfirmed: ' . $exception->getMessage(), 0, 255),
             'member_payment_id' => $paymentId,
         ]);
-        error_log('Daraja member STK request failed; payment remains pending: ' . $exception->getMessage());
+        daraja_log_event('stk_initiation_unconfirmed', $logContext + [
+            'processing_result' => 'pending_confirmation',
+            'error_type' => get_class($exception),
+        ]);
         return [
             'payment_id' => $paymentId,
             'status' => 'pending',
@@ -570,6 +658,11 @@ function start_member_daraja_payment(
         'description' => $description !== '' ? $description : 'Daraja did not accept the payment request.',
         'member_payment_id' => $paymentId,
     ]);
+    daraja_log_event('stk_initiation_result', $logContext + [
+        'checkout_request_id' => $checkoutId,
+        'merchant_request_id' => $merchantId,
+        'processing_result' => $status,
+    ]);
 
     return [
         'payment_id' => $paymentId,
@@ -593,9 +686,17 @@ function handle_daraja_member_callback(array $payload, string $rawBody): bool
     }
 
     $resultCode = isset($callback['ResultCode']) ? (string) $callback['ResultCode'] : '';
+    if ($resultCode === '' || strlen($resultCode) > 20 || !preg_match('/^\d+$/', $resultCode)) {
+        daraja_log_event('callback_rejected', [
+            'checkout_request_id' => $checkoutId,
+            'processing_result' => 'invalid_result_code',
+        ]);
+        return false;
+    }
     $resultDescription = mb_substr(trim((string) ($callback['ResultDesc'] ?? '')), 0, 255);
     $metadata = [];
-    foreach (($callback['CallbackMetadata']['Item'] ?? []) as $item) {
+    $items = $callback['CallbackMetadata']['Item'] ?? [];
+    foreach (is_array($items) ? $items : [] as $item) {
         if (is_array($item) && isset($item['Name'])) {
             $metadata[(string) $item['Name']] = $item['Value'] ?? null;
         }
@@ -617,11 +718,29 @@ function handle_daraja_member_callback(array $payload, string $rawBody): bool
     }
 
     $pdo = db();
-    $paymentStmt = $pdo->prepare('SELECT member_payment_id, member_id, payment_type, related_id, amount, phone_number, transaction_reference FROM member_daraja_payments WHERE checkout_request_id = :checkout_id LIMIT 1');
+    $paymentStmt = $pdo->prepare('SELECT member_payment_id, member_id, payment_type, related_id, amount, phone_number, transaction_reference, merchant_request_id FROM member_daraja_payments WHERE checkout_request_id = :checkout_id LIMIT 1');
     $paymentStmt->execute(['checkout_id' => $checkoutId]);
     $payment = $paymentStmt->fetch();
     if (!$payment) {
+        daraja_log_event('callback_unmatched', [
+            'checkout_request_id' => $checkoutId,
+            'processing_result' => 'unknown_checkout_request',
+        ]);
         return false;
+    }
+
+    $callbackMerchantId = trim((string) ($callback['MerchantRequestID'] ?? ''));
+    $merchantMatches = $callbackMerchantId !== '' &&
+        !empty($payment['merchant_request_id']) &&
+        hash_equals((string) $payment['merchant_request_id'], $callbackMerchantId);
+    if (!$merchantMatches) {
+        daraja_log_event('callback_rejected', [
+            'checkout_request_id' => $checkoutId,
+            'payment_reference' => (string) $payment['transaction_reference'],
+            'payment_purpose' => (string) $payment['payment_type'],
+            'processing_result' => 'merchant_request_id_mismatch',
+        ]);
+        return true;
     }
 
     $pdo->beginTransaction();
@@ -650,10 +769,22 @@ function handle_daraja_member_callback(array $payload, string $rawBody): bool
         throw $exception;
     }
 
+    $logContext = [
+        'checkout_request_id' => $checkoutId,
+        'merchant_request_id' => $callbackMerchantId,
+        'payment_reference' => (string) $payment['transaction_reference'],
+        'payment_purpose' => (string) $payment['payment_type'],
+        'processing_result' => $resultCode === '0' ? 'success_callback_received' : 'failure_callback_received',
+    ];
+    daraja_log_event('callback_received', $logContext);
+
     try {
         reconcile_daraja_member_payment((int) $payment['member_payment_id']);
     } catch (Throwable $exception) {
-        error_log('Daraja member payment verification remains pending: ' . $exception->getMessage());
+        daraja_log_event('callback_reconciliation_error', array_merge($logContext, [
+            'processing_result' => 'verification_pending',
+            'error_type' => get_class($exception),
+        ]));
     }
 
     return true;
@@ -675,7 +806,10 @@ function reconcile_daraja_member_payment(int $memberPaymentId): array
         throw new InvalidArgumentException('Daraja has not provided a checkout request ID for this payment.');
     }
 
-    $query = daraja_query_stk_payment((string) $payment['checkout_request_id']);
+    $query = daraja_query_stk_payment((string) $payment['checkout_request_id'], [
+        'payment_reference' => (string) $payment['transaction_reference'],
+        'payment_purpose' => (string) $payment['payment_type'],
+    ]);
     $queryCode = $query['result_code'];
     $queryDescription = $query['result_description'];
     $callbackMatches = $payment['callback_result_code'] === '0' &&
@@ -690,8 +824,12 @@ function reconcile_daraja_member_payment(int $memberPaymentId): array
         $status = 'successful';
         $message = 'Daraja confirmed the payment and the callback matches the request exactly.';
     } elseif ($queryCode !== '' && $queryCode !== '0' && $payment['callback_result_code'] !== null && $payment['callback_result_code'] !== '0') {
-        $status = 'failed';
-        $message = 'Daraja confirmed that the STK payment did not complete.';
+        $status = daraja_failure_status((string) $payment['callback_result_code']);
+        $message = match ($status) {
+            'cancelled' => 'The M-Pesa prompt was cancelled. No payment was recorded.',
+            'timed_out' => 'The M-Pesa prompt timed out. No payment was recorded.',
+            default => 'Daraja confirmed that the STK payment did not complete.',
+        };
     } elseif ($queryCode === '0' && !$callbackMatches) {
         $message = 'Daraja query returned success, but the callback amount, phone or receipt is missing or mismatched. No payment was credited.';
     } elseif ($queryCode !== '') {
@@ -710,14 +848,39 @@ function reconcile_daraja_member_payment(int $memberPaymentId): array
         if ($currentStatus === 'successful') {
             $status = 'successful';
         }
+        $loanData = null;
+        if ($currentStatus !== 'successful' && $status === 'successful' &&
+            (string) $payment['payment_type'] === 'loan_repayment') {
+            $loan = $pdo->prepare(
+                'SELECT loan_id, member_id, outstanding_balance, due_date, status
+                 FROM loans
+                 WHERE loan_id = :loan_id AND member_id = :member_id
+                 FOR UPDATE'
+            );
+            $loan->execute([
+                'loan_id' => (int) $payment['related_id'],
+                'member_id' => (int) $payment['member_id'],
+            ]);
+            $loanData = $loan->fetch();
+            if (!$loanData || (float) ($loanData['outstanding_balance'] ?? 0) + 0.00001 < (float) $payment['amount']) {
+                $status = 'review_required';
+                $message = 'Daraja verified this payment, but the remaining loan balance is lower than the repayment. No loan credit was made; admin review is required.';
+            }
+        }
+
         $update = $pdo->prepare(
             'UPDATE member_daraja_payments
              SET status = :status,
-                 mpesa_receipt_number = CASE WHEN :status = \'successful\' THEN callback_receipt_number ELSE mpesa_receipt_number END,
-                 verified_at = CASE WHEN :status = \'successful\' THEN COALESCE(verified_at, NOW()) ELSE verified_at END
+                 mpesa_receipt_number = CASE WHEN :receipt_status IN (\'successful\', \'review_required\') THEN callback_receipt_number ELSE mpesa_receipt_number END,
+                 verified_at = CASE WHEN :verified_status IN (\'successful\', \'review_required\') THEN COALESCE(verified_at, NOW()) ELSE verified_at END
              WHERE member_payment_id = :member_payment_id'
         );
-        $update->execute(['status' => $status, 'member_payment_id' => $memberPaymentId]);
+        $update->execute([
+            'status' => $status,
+            'receipt_status' => $status,
+            'verified_status' => $status,
+            'member_payment_id' => $memberPaymentId,
+        ]);
 
         if ($status === 'successful') {
             $paymentType = (string) $payment['payment_type'];
@@ -745,16 +908,13 @@ function reconcile_daraja_member_payment(int $memberPaymentId): array
                 }
             }
 
-            if ($paymentType === 'loan_repayment') {
+            if ($paymentType === 'loan_repayment' && $loanData) {
                 $duplicateRepayment = $pdo->prepare('SELECT repayment_id FROM loan_repayments WHERE loan_id = :loan_id AND reference = :reference LIMIT 1');
                 $duplicateRepayment->execute([
                     'loan_id' => (int) $payment['related_id'],
                     'reference' => $receipt !== '' ? $receipt : $payment['transaction_reference'],
                 ]);
                 if (!$duplicateRepayment->fetch()) {
-                    $loan = $pdo->prepare('SELECT loan_id, outstanding_balance, due_date, status FROM loans WHERE loan_id = :loan_id FOR UPDATE');
-                    $loan->execute(['loan_id' => (int) $payment['related_id']]);
-                    $loanData = $loan->fetch();
                     if ($loanData) {
                         $newAmount = round((float) $payment['amount'], 2);
                         $newBalance = round((float) ($loanData['outstanding_balance'] ?? 0) - $newAmount, 2);
@@ -781,6 +941,11 @@ function reconcile_daraja_member_payment(int $memberPaymentId): array
         }
 
         $pdo->commit();
+        daraja_log_event('payment_reconciled', [
+            'payment_reference' => (string) $payment['transaction_reference'],
+            'payment_purpose' => (string) $payment['payment_type'],
+            'processing_result' => $status,
+        ]);
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -890,6 +1055,10 @@ function start_investment_stk_payment(
     }
 
     $timestamp = daraja_timestamp();
+    $logContext = [
+        'payment_reference' => $reference,
+        'payment_purpose' => 'investment',
+    ];
     try {
         $response = daraja_api_request(
             'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
@@ -907,7 +1076,8 @@ function start_investment_stk_payment(
                 'AccountReference' => $reference,
                 'TransactionDesc' => 'ChamaWise investment',
             ],
-            daraja_access_token()
+            daraja_access_token($logContext),
+            $logContext
         );
     } catch (Throwable $exception) {
         $update = $pdo->prepare(
@@ -919,7 +1089,10 @@ function start_investment_stk_payment(
             'description' => mb_substr('Daraja response is unconfirmed: ' . $exception->getMessage(), 0, 255),
             'payment_id' => $paymentId,
         ]);
-        error_log('Daraja investment STK request failed; payment remains pending: ' . $exception->getMessage());
+        daraja_log_event('stk_initiation_unconfirmed', $logContext + [
+            'processing_result' => 'pending_confirmation',
+            'error_type' => get_class($exception),
+        ]);
         return [
             'payment_id' => $paymentId,
             'status' => 'pending',
@@ -946,6 +1119,11 @@ function start_investment_stk_payment(
         'description' => $description !== '' ? $description : 'Daraja did not accept the investment STK request.',
         'payment_id' => $paymentId,
     ]);
+    daraja_log_event('stk_initiation_result', $logContext + [
+        'checkout_request_id' => $checkoutId,
+        'merchant_request_id' => $merchantId,
+        'processing_result' => $status,
+    ]);
 
     return [
         'payment_id' => $paymentId,
@@ -956,13 +1134,50 @@ function start_investment_stk_payment(
     ];
 }
 
+/** @param callable|null $provider */
+function daraja_set_test_query_result_provider(?callable $provider): void
+{
+    if (PHP_SAPI !== 'cli' || !defined('APP_ENV') || APP_ENV !== 'test') {
+        throw new LogicException('Simulated Daraja query results are available only in CLI test mode.');
+    }
+
+    $GLOBALS['daraja_test_query_result_provider'] = $provider;
+}
+
 /**
  * @return array{result_code: string, result_description: string}
  */
-function daraja_query_stk_payment(string $checkoutRequestId): array
+function daraja_query_stk_payment(string $checkoutRequestId, array $logContext = []): array
 {
+    if (defined('APP_ENV') && APP_ENV === 'test') {
+        if (PHP_SAPI !== 'cli') {
+            throw new LogicException('Simulated Daraja query results are restricted to CLI.');
+        }
+        $provider = $GLOBALS['daraja_test_query_result_provider'] ?? null;
+        if (!is_callable($provider)) {
+            throw new RuntimeException('No test Daraja query result provider has been configured.');
+        }
+        $result = $provider($checkoutRequestId);
+        if (!is_array($result) ||
+            !isset($result['result_code'], $result['result_description']) ||
+            !is_string($result['result_code']) ||
+            !is_string($result['result_description']) ||
+            ($result['result_code'] !== '' && !preg_match('/^\d+$/', $result['result_code']))) {
+            throw new RuntimeException('The test Daraja query provider returned an invalid result.');
+        }
+        daraja_log_event('stk_query_result', $logContext + [
+            'checkout_request_id' => $checkoutRequestId,
+            'processing_result' => 'TEST DATA ' . $result['result_code'],
+        ]);
+        return [
+            'result_code' => $result['result_code'],
+            'result_description' => mb_substr(trim($result['result_description']), 0, 255),
+        ];
+    }
+
     $config = daraja_sandbox_config();
     $timestamp = daraja_timestamp();
+    $logContext['checkout_request_id'] = $checkoutRequestId;
     $response = daraja_api_request(
         'https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query',
         'POST',
@@ -972,7 +1187,8 @@ function daraja_query_stk_payment(string $checkoutRequestId): array
             'Timestamp' => $timestamp,
             'CheckoutRequestID' => $checkoutRequestId,
         ],
-        daraja_access_token()
+        daraja_access_token($logContext),
+        $logContext
     );
 
     return [
@@ -992,9 +1208,21 @@ function handle_daraja_investment_callback(array $payload, string $rawBody): boo
         return false;
     }
     $resultCode = isset($callback['ResultCode']) ? (string) $callback['ResultCode'] : '';
+    if ($resultCode === '' || strlen($resultCode) > 20 || !preg_match('/^\d+$/', $resultCode)) {
+        daraja_log_event('callback_rejected', [
+            'checkout_request_id' => $checkoutId,
+            'payment_purpose' => 'investment',
+            'processing_result' => 'invalid_result_code',
+        ]);
+        return false;
+    }
+    $callbackMerchantId = isset($callback['MerchantRequestID'])
+        ? trim((string) $callback['MerchantRequestID'])
+        : '';
     $resultDescription = mb_substr(trim((string) ($callback['ResultDesc'] ?? '')), 0, 255);
     $metadata = [];
-    foreach (($callback['CallbackMetadata']['Item'] ?? []) as $item) {
+    $metadataItems = $callback['CallbackMetadata']['Item'] ?? [];
+    foreach (is_array($metadataItems) ? $metadataItems : [] as $item) {
         if (is_array($item) && isset($item['Name'])) {
             $metadata[(string) $item['Name']] = $item['Value'] ?? null;
         }
@@ -1018,21 +1246,57 @@ function handle_daraja_investment_callback(array $payload, string $rawBody): boo
     }
 
     $pdo = db();
-    $paymentStmt = $pdo->prepare('SELECT payment_id FROM investment_payments WHERE checkout_request_id = :checkout_id LIMIT 1');
+    $paymentStmt = $pdo->prepare(
+        'SELECT payment_id, merchant_request_id, transaction_reference
+         FROM investment_payments
+         WHERE checkout_request_id = :checkout_id
+         LIMIT 1'
+    );
     $paymentStmt->execute(['checkout_id' => $checkoutId]);
-    $paymentId = (int) $paymentStmt->fetchColumn();
-    if ($paymentId < 1) {
-        error_log('Daraja investment callback received an unknown checkout request.');
+    $payment = $paymentStmt->fetch();
+    if (!$payment) {
+        daraja_log_event('callback_rejected', [
+            'checkout_request_id' => $checkoutId,
+            'payment_purpose' => 'investment',
+            'processing_result' => 'unknown_checkout_request',
+        ]);
         return false;
     }
+    $paymentId = (int) $payment['payment_id'];
+    $merchantMatches = $callbackMerchantId !== '' &&
+        hash_equals((string) ($payment['merchant_request_id'] ?? ''), $callbackMerchantId);
 
     $pdo->beginTransaction();
     try {
-        $locked = $pdo->prepare('SELECT status FROM investment_payments WHERE payment_id = :id FOR UPDATE');
+        $locked = $pdo->prepare('SELECT status, merchant_request_id FROM investment_payments WHERE payment_id = :id FOR UPDATE');
         $locked->execute(['id' => $paymentId]);
-        if (!$locked->fetch()) {
+        $lockedPayment = $locked->fetch();
+        if (!$lockedPayment) {
             $pdo->rollBack();
             return false;
+        }
+        $merchantMatches = $callbackMerchantId !== '' &&
+            hash_equals((string) ($lockedPayment['merchant_request_id'] ?? ''), $callbackMerchantId);
+        if (!$merchantMatches) {
+            $event = $pdo->prepare(
+                "INSERT INTO investment_payment_audit
+                    (payment_id, action, result_code, result_description, reason)
+                 VALUES (:payment_id, 'callback_rejected', :result_code, :description, :reason)"
+            );
+            $event->execute([
+                'payment_id' => $paymentId,
+                'result_code' => $resultCode,
+                'description' => $resultDescription,
+                'reason' => 'Callback MerchantRequestID did not match the stored Daraja request.',
+            ]);
+            $pdo->commit();
+            daraja_log_event('callback_rejected', [
+                'payment_reference' => (string) $payment['transaction_reference'],
+                'checkout_request_id' => $checkoutId,
+                'payment_purpose' => 'investment',
+                'processing_result' => 'merchant_request_id_mismatch',
+            ]);
+            return true;
         }
         $update = $pdo->prepare(
             'UPDATE investment_payments
@@ -1070,9 +1334,21 @@ function handle_daraja_investment_callback(array $payload, string $rawBody): boo
     }
 
     try {
-        reconcile_daraja_investment_payment($paymentId);
+        $result = reconcile_daraja_investment_payment($paymentId);
+        daraja_log_event('callback_reconciled', [
+            'payment_reference' => (string) $payment['transaction_reference'],
+            'checkout_request_id' => $checkoutId,
+            'payment_purpose' => 'investment',
+            'processing_result' => (string) $result['status'],
+        ]);
     } catch (Throwable $exception) {
-        error_log('Daraja callback payment verification remains pending: ' . $exception->getMessage());
+        daraja_log_event('callback_reconciliation_error', [
+            'payment_reference' => (string) $payment['transaction_reference'],
+            'checkout_request_id' => $checkoutId,
+            'payment_purpose' => 'investment',
+            'processing_result' => 'verification_pending',
+            'error_type' => get_class($exception),
+        ]);
     }
 
     return true;
@@ -1099,7 +1375,12 @@ function reconcile_daraja_investment_payment(int $paymentId, ?int $adminId = nul
         throw new InvalidArgumentException('Daraja has not provided a checkout request ID for this payment.');
     }
 
-    $query = daraja_query_stk_payment((string) $payment['checkout_request_id']);
+    $logContext = [
+        'payment_reference' => (string) $payment['transaction_reference'],
+        'checkout_request_id' => (string) $payment['checkout_request_id'],
+        'payment_purpose' => 'investment',
+    ];
+    $query = daraja_query_stk_payment((string) $payment['checkout_request_id'], $logContext);
     $queryCode = $query['result_code'];
     $queryDescription = $query['result_description'];
     $callbackMatches = $payment['callback_result_code'] === '0' &&
@@ -1115,8 +1396,12 @@ function reconcile_daraja_investment_payment(int $paymentId, ?int $adminId = nul
         $message = 'Daraja confirmed the payment and its amount, phone and receipt match the request.';
     } elseif ($queryCode !== '' && $queryCode !== '0' && $payment['callback_result_code'] !== null &&
         $payment['callback_result_code'] !== '0') {
-        $status = 'failed';
-        $message = 'Daraja confirmed that the STK payment did not complete.';
+        $status = daraja_failure_status((string) $payment['callback_result_code']);
+        $message = match ($status) {
+            'cancelled' => 'The M-Pesa prompt was cancelled. No investment was recorded.',
+            'timed_out' => 'The M-Pesa prompt timed out. No investment was recorded.',
+            default => 'Daraja confirmed that the STK payment did not complete.',
+        };
     } elseif ($queryCode === '0' && !$callbackMatches) {
         $message = 'Daraja query returned success, but the callback amount, phone or receipt is missing or mismatched. No investment credit was made.';
     } elseif ($queryCode !== '') {
@@ -1138,11 +1423,16 @@ function reconcile_daraja_investment_payment(int $paymentId, ?int $adminId = nul
         $update = $pdo->prepare(
             'UPDATE investment_payments
              SET status = :status,
-                 mpesa_receipt_number = CASE WHEN :status = \'successful\' THEN callback_receipt_number ELSE mpesa_receipt_number END,
-                 verified_at = CASE WHEN :status = \'successful\' THEN COALESCE(verified_at, NOW()) ELSE verified_at END
+                 mpesa_receipt_number = CASE WHEN :receipt_status = \'successful\' THEN callback_receipt_number ELSE mpesa_receipt_number END,
+                 verified_at = CASE WHEN :verified_status = \'successful\' THEN COALESCE(verified_at, NOW()) ELSE verified_at END
              WHERE payment_id = :payment_id'
         );
-        $update->execute(['status' => $status, 'payment_id' => $paymentId]);
+        $update->execute([
+            'status' => $status,
+            'receipt_status' => $status,
+            'verified_status' => $status,
+            'payment_id' => $paymentId,
+        ]);
 
         if ($status === 'successful') {
             $allocation = $pdo->prepare('SELECT allocation_id FROM investment_payment_allocations WHERE payment_id = :id LIMIT 1');

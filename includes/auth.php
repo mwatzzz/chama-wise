@@ -8,6 +8,12 @@ function require_login(): void
         flash_set('error', 'Please log in to continue.');
         redirect('auth/login.php');
     }
+
+    if (is_member() && !member_account_is_active(db(), (int) current_user()['user_id'])) {
+        destroy_session();
+        flash_set('error', 'This member account is no longer active.');
+        redirect('auth/login.php');
+    }
 }
 
 function require_member(): void
@@ -19,6 +25,13 @@ function require_member(): void
     }
 }
 
+function member_account_is_active(PDO $pdo, int $memberId): bool
+{
+    $stmt = $pdo->prepare('SELECT status FROM members WHERE member_id = :member_id LIMIT 1');
+    $stmt->execute(['member_id' => $memberId]);
+    return $stmt->fetchColumn() === 'active';
+}
+
 function require_admin(): void
 {
     require_login();
@@ -26,6 +39,82 @@ function require_admin(): void
         flash_set('error', 'You are not authorised to view that page.');
         redirect('member/dashboard.php');
     }
+}
+
+function ensure_auth_login_attempts_schema(): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS auth_login_attempts (
+            email_hash CHAR(64) NOT NULL,
+            ip_hash CHAR(64) NOT NULL,
+            window_started_at DATETIME NOT NULL,
+            failed_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+            locked_until DATETIME NULL,
+            PRIMARY KEY (email_hash, ip_hash),
+            KEY idx_auth_attempts_locked_until (locked_until),
+            KEY idx_auth_attempts_window (window_started_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+    $checked = true;
+}
+
+function prune_login_attempts(): void
+{
+    db()->exec('DELETE FROM auth_login_attempts WHERE window_started_at < CURRENT_TIMESTAMP - INTERVAL 1 DAY');
+}
+
+function login_attempt_hashes(string $email): array
+{
+    $ipAddress = (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+
+    return [
+        hash('sha256', strtolower(trim($email))),
+        hash('sha256', $ipAddress),
+    ];
+}
+
+function login_is_rate_limited(string $email): bool
+{
+    [$emailHash, $ipHash] = login_attempt_hashes($email);
+    $stmt = db()->prepare(
+        'SELECT locked_until > CURRENT_TIMESTAMP
+         FROM auth_login_attempts
+         WHERE email_hash = :email_hash AND ip_hash = :ip_hash
+         LIMIT 1'
+    );
+    $stmt->execute(['email_hash' => $emailHash, 'ip_hash' => $ipHash]);
+
+    return (bool) $stmt->fetchColumn();
+}
+
+function record_login_failure(string $email): void
+{
+    [$emailHash, $ipHash] = login_attempt_hashes($email);
+    db()->prepare(
+        'INSERT INTO auth_login_attempts (email_hash, ip_hash, window_started_at, failed_attempts, locked_until)
+         VALUES (:email_hash, :ip_hash, CURRENT_TIMESTAMP, 1, NULL)
+         ON DUPLICATE KEY UPDATE
+            failed_attempts = IF(window_started_at <= CURRENT_TIMESTAMP - INTERVAL 15 MINUTE, 1, failed_attempts + 1),
+            locked_until = IF(
+                window_started_at <= CURRENT_TIMESTAMP - INTERVAL 15 MINUTE,
+                NULL,
+                IF(failed_attempts >= 5, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 15 MINUTE), locked_until)
+            ),
+            window_started_at = IF(window_started_at <= CURRENT_TIMESTAMP - INTERVAL 15 MINUTE, CURRENT_TIMESTAMP, window_started_at)'
+    )->execute(['email_hash' => $emailHash, 'ip_hash' => $ipHash]);
+}
+
+function clear_login_failures(string $email): void
+{
+    [$emailHash, $ipHash] = login_attempt_hashes($email);
+    db()->prepare(
+        'DELETE FROM auth_login_attempts WHERE email_hash = :email_hash AND ip_hash = :ip_hash'
+    )->execute(['email_hash' => $emailHash, 'ip_hash' => $ipHash]);
 }
 
 function remember_user(int $userId, string $role): void
@@ -54,6 +143,7 @@ function set_remember_cookie(string $value, int $lifetime): void
     setcookie('chamawise_remember', $value, [
         'expires' => time() + $lifetime,
         'path' => APP_BASE === '' ? '/' : APP_BASE,
+        'secure' => APP_ENV === 'production' || app_request_is_https(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
@@ -136,6 +226,7 @@ function destroy_session(): void
         setcookie(session_name(), '', [
             'expires' => time() - 42000,
             'path' => $params['path'] ?: (APP_BASE === '' ? '/' : APP_BASE),
+            'secure' => APP_ENV === 'production' || app_request_is_https(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);

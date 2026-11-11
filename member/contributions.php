@@ -57,7 +57,7 @@ $contributions = $stmt->fetchAll();
 $verifiedContributions = array_values(array_filter($contributions, static fn (array $contribution): bool => $contribution['status'] === 'recorded'));
 $total = array_sum(array_map(static fn (array $contribution): float => (float) $contribution['amount'], $verifiedContributions));
 $darajaStmt = db()->prepare(
-    "SELECT transaction_reference, amount, status, request_result_description,
+    "SELECT transaction_reference, amount, status, checkout_request_id, request_result_description,
             callback_result_description, mpesa_receipt_number, created_at, verified_at
      FROM member_daraja_payments
      WHERE member_id = :member_id AND payment_type = 'contribution'
@@ -74,19 +74,7 @@ require ROOT_PATH . '/includes/header.php';
 ?>
 
 <div class="member-layout">
-    <aside class="member-sidebar">
-        <nav aria-label="Member navigation">
-            <a class="member-nav-link" href="<?php echo e(url('member/dashboard.php')); ?>"><span>&#8962;</span> Dashboard</a>
-            <a class="member-nav-link active" href="<?php echo e(url('member/contributions.php')); ?>"><span>&#9776;</span> Contributions</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/penalties.php')); ?>"><span>&#9888;</span> Penalties</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/loans.php')); ?>"><span>&#9633;</span> Loans</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/repayments.php')); ?>"><span>&#8646;</span> Loan Repayment</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/meetings.php')); ?>"><span>&#9635;</span> Meetings</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/ai_advisor.php')); ?>"><span>&#10022;</span> AI Advisor</a>
-            <a class="member-nav-link" href="<?php echo e(url('member/profile.php')); ?>"><span>&#9679;</span> Profile</a>
-        </nav>
-        <a class="member-nav-link member-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span>&#10132;</span> Logout</a>
-    </aside>
+    <?php require ROOT_PATH . '/includes/member_sidebar.php'; ?>
     <section class="member-content">
         <div class="member-breadcrumb">Dashboard <span>&#8250;</span> Contributions</div>
         <div class="member-heading"><div><h1>My Contributions</h1><p>Track your chama contribution history.</p></div><a class="btn btn-outline-brand" href="<?php echo e(url('member/profile.php')); ?>">&#8592; Profile</a></div>
@@ -111,7 +99,7 @@ require ROOT_PATH . '/includes/header.php';
                         <td><?php echo e((string) $payment['created_at']); ?></td>
                         <td>KES <?php echo e(number_format((float) $payment['amount'], 2)); ?></td>
                         <td><?php echo e((string) $payment['transaction_reference']); ?></td>
-                        <td><span class="table-status"><?php echo e(ucfirst((string) $payment['status'])); ?></span></td>
+                        <td><span class="table-status"><?php echo e(daraja_payment_status_label((string) $payment['status'], !empty($payment['checkout_request_id']))); ?></span></td>
                         <td><?php echo e($payment['mpesa_receipt_number'] ?: 'Pending verification'); ?></td>
                         <td><?php echo e($payment['callback_result_description'] ?: $payment['request_result_description'] ?: 'Awaiting Daraja update.'); ?></td>
                     </tr>

@@ -17,20 +17,32 @@ function build_member_financial_context(int $memberId, string $question = ''): a
     }
 
     $normalizedQuestion = mb_strtolower($question);
-    $includeContributions = $question === '' || preg_match('/contribut|mchango|michango|paid|payment|saving/i', $normalizedQuestion) === 1;
-    $includeLoans = $question === '' || preg_match('/loan|mkopo|debt|deni|repay|pay.?back|borrow|eligib/i', $normalizedQuestion) === 1;
-    $includePenalties = $question === '' || preg_match('/penalt|fine|faini|adhabu/i', $normalizedQuestion) === 1;
-    $includeInvestments = $question === '' || preg_match('/invest|uwekezaji|opportunit|portfolio|project|scenario|return|goal|faida/i', $normalizedQuestion) === 1;
+    $contributionQuestion = preg_match('/contribut|mchango|michango|paid|payment|saving|akiba/i', $normalizedQuestion) === 1;
+    $loanQuestion = preg_match('/loan|mkopo|debt|deni|repay|pay.?back|borrow|eligib/i', $normalizedQuestion) === 1;
+    $penaltyQuestion = preg_match('/penalt|fine|faini|adhabu/i', $normalizedQuestion) === 1;
+    $investmentQuestion = preg_match('/invest|uwekezaji|opportunit|portfolio|project|scenario|return|goal|faida/i', $normalizedQuestion) === 1;
+    $overviewQuestion = $question === '' || (!$contributionQuestion && !$loanQuestion && !$penaltyQuestion && !$investmentQuestion);
+    $includeContributions = $overviewQuestion || $contributionQuestion;
+    $includeLoans = $overviewQuestion || $loanQuestion;
+    $includePenalties = $overviewQuestion || $penaltyQuestion;
+    $includeInvestments = $investmentQuestion;
+    $includeHistory = $question === '';
 
-    $contributionSummaryStmt = db()->prepare(
-        "SELECT COUNT(*) AS total_count, COALESCE(SUM(amount), 0) AS total_amount
-         FROM contributions
-         WHERE member_id = :member_id AND status = 'recorded'"
-    );
-    $contributionSummaryStmt->execute(['member_id' => $memberId]);
-    $contributionSummary = $contributionSummaryStmt->fetch();
     $contributions = [];
     if ($includeContributions) {
+        $contributionSummaryStmt = db()->prepare(
+            "SELECT COUNT(*) AS total_count, COALESCE(SUM(amount), 0) AS total_amount
+             FROM contributions
+             WHERE member_id = :member_id AND status = 'recorded'"
+        );
+        $contributionSummaryStmt->execute(['member_id' => $memberId]);
+        $contributionSummary = $contributionSummaryStmt->fetch();
+        $contributions = [
+            'total_count' => (int) $contributionSummary['total_count'],
+            'total_amount' => round((float) $contributionSummary['total_amount'], 2),
+        ];
+    }
+    if ($contributionQuestion || $includeHistory) {
         $contributionStmt = db()->prepare(
             'SELECT amount, contribution_date, status, notes
              FROM contributions
@@ -39,18 +51,32 @@ function build_member_financial_context(int $memberId, string $question = ''): a
              LIMIT 5'
         );
         $contributionStmt->execute(['member_id' => $memberId]);
-        $contributions = $contributionStmt->fetchAll();
+        $contributionHistory = $contributionStmt->fetchAll();
+    } else {
+        $contributionHistory = [];
     }
 
-    $loanSummaryStmt = db()->prepare(
-        'SELECT COUNT(*) AS total_count, COALESCE(SUM(outstanding_balance), 0) AS outstanding_balance
-         FROM loans
-         WHERE member_id = :member_id'
-    );
-    $loanSummaryStmt->execute(['member_id' => $memberId]);
-    $loanSummary = $loanSummaryStmt->fetch();
+    $loanSummary = null;
+    $repaymentSummary = null;
     $loans = [];
+    $repayments = [];
     if ($includeLoans) {
+        $loanSummaryStmt = db()->prepare(
+            'SELECT COUNT(*) AS total_count, COALESCE(SUM(outstanding_balance), 0) AS outstanding_balance
+             FROM loans
+             WHERE member_id = :member_id'
+        );
+        $loanSummaryStmt->execute(['member_id' => $memberId]);
+        $loanSummary = $loanSummaryStmt->fetch();
+        $repaymentSummaryStmt = db()->prepare(
+            'SELECT COUNT(*) AS total_count, COALESCE(SUM(r.amount), 0) AS total_amount
+             FROM loan_repayments r
+             INNER JOIN loans l ON l.loan_id = r.loan_id AND l.member_id = :member_id'
+        );
+        $repaymentSummaryStmt->execute(['member_id' => $memberId]);
+        $repaymentSummary = $repaymentSummaryStmt->fetch();
+    }
+    if ($loanQuestion || $includeHistory) {
         $loanStmt = db()->prepare(
             'SELECT loan_id, requested_amount, approved_amount, interest_rate, outstanding_balance,
                     purpose, status, rejection_reason, application_date, approval_date
@@ -61,17 +87,6 @@ function build_member_financial_context(int $memberId, string $question = ''): a
         );
         $loanStmt->execute(['member_id' => $memberId]);
         $loans = $loanStmt->fetchAll();
-    }
-
-    $repaymentSummaryStmt = db()->prepare(
-        'SELECT COUNT(*) AS total_count, COALESCE(SUM(r.amount), 0) AS total_amount
-         FROM loan_repayments r
-         INNER JOIN loans l ON l.loan_id = r.loan_id AND l.member_id = :member_id'
-    );
-    $repaymentSummaryStmt->execute(['member_id' => $memberId]);
-    $repaymentSummary = $repaymentSummaryStmt->fetch();
-    $repayments = [];
-    if ($includeLoans) {
         $repaymentStmt = db()->prepare(
             'SELECT r.loan_id, r.amount, r.payment_date, r.reference
              FROM loan_repayments r
@@ -83,15 +98,18 @@ function build_member_financial_context(int $memberId, string $question = ''): a
         $repayments = $repaymentStmt->fetchAll();
     }
 
-    $penaltySummaryStmt = db()->prepare(
-        "SELECT COALESCE(SUM(CASE WHEN status = 'outstanding' THEN amount ELSE 0 END), 0) AS outstanding_total
-         FROM penalties
-         WHERE member_id = :member_id"
-    );
-    $penaltySummaryStmt->execute(['member_id' => $memberId]);
-    $penaltySummary = $penaltySummaryStmt->fetch();
+    $penaltySummary = null;
     $penalties = [];
     if ($includePenalties) {
+        $penaltySummaryStmt = db()->prepare(
+            "SELECT COALESCE(SUM(CASE WHEN status = 'outstanding' THEN amount ELSE 0 END), 0) AS outstanding_total
+             FROM penalties
+             WHERE member_id = :member_id"
+        );
+        $penaltySummaryStmt->execute(['member_id' => $memberId]);
+        $penaltySummary = $penaltySummaryStmt->fetch();
+    }
+    if ($penaltyQuestion || $includeHistory) {
         $penaltyStmt = db()->prepare(
             'SELECT amount, reason, penalty_date, status
              FROM penalties
@@ -103,7 +121,7 @@ function build_member_financial_context(int $memberId, string $question = ''): a
         $penalties = $penaltyStmt->fetchAll();
     }
 
-    $eligibility = $includeLoans ? evaluate_loan_application($memberId, null) : null;
+    $eligibility = $loanQuestion ? evaluate_loan_application($memberId, null) : null;
     $investmentPlans = [];
     $verifiedOpportunities = [];
     if ($includeInvestments) {
@@ -189,32 +207,32 @@ function build_member_financial_context(int $memberId, string $question = ''): a
 
     $context = [
         'member' => [
-            'id' => (int) $member['member_id'],
             'name' => (string) $member['name'],
             'status' => (string) $member['status'],
             'joined_date' => (string) $member['joined_date'],
         ],
-        'history_note' => 'Included history lists show at most the 5 most recent records; totals and counts cover all matching records.',
-        'contributions' => [
-            'total_count' => (int) $contributionSummary['total_count'],
-            'total_amount' => round((float) $contributionSummary['total_amount'], 2),
-            'history' => $contributions,
-        ],
-        'loans' => [
+    ];
+    if ($includeContributions) {
+        $context['contributions'] = $contributions + ['history' => $contributionHistory];
+    }
+    if ($includeLoans) {
+        $context['loans'] = [
             'total_count' => (int) $loanSummary['total_count'],
             'outstanding_balance' => round((float) $loanSummary['outstanding_balance'], 2),
             'history' => $loans,
-        ],
-        'repayments' => [
+        ];
+        $context['repayments'] = [
             'total_count' => (int) $repaymentSummary['total_count'],
             'total_amount' => round((float) $repaymentSummary['total_amount'], 2),
             'history' => $repayments,
-        ],
-        'penalties' => [
+        ];
+    }
+    if ($includePenalties) {
+        $context['penalties'] = [
             'outstanding_total' => round((float) $penaltySummary['outstanding_total'], 2),
             'history' => $penalties,
-        ],
-    ];
+        ];
+    }
 
     if ($eligibility !== null) {
         $context['loan_eligibility'] = [
@@ -241,6 +259,8 @@ function build_member_financial_context(int $memberId, string $question = ''): a
         $context['investment_plans'] = [
             'type' => 'simulated_planning_only',
             'real_money_transactions_supported' => false,
+            'projection_method' => 'Monthly compounding at the equivalent monthly rate derived from the annual assumption; monthly contributions are treated as end-of-month deposits.',
+            'fees_and_taxes_included' => false,
             'plans' => $investmentPlans,
             'verified_active_opportunities' => $verifiedOpportunities,
         ];

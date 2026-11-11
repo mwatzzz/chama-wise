@@ -33,7 +33,11 @@ if (!isset($allowedTypes[$mimeType]) || @getimagesize((string) $file['tmp_name']
     redirect('member/dashboard.php');
 }
 
-$uploadDirectory = ROOT_PATH . '/uploads/profile-pictures';
+$uploadDirectory = member_profile_picture_directory();
+if (is_link($uploadDirectory)) {
+    flash_set('error', 'Profile pictures cannot be saved to a symbolic-link folder.');
+    redirect('member/dashboard.php');
+}
 if (!is_dir($uploadDirectory) && !mkdir($uploadDirectory, 0755, true) && !is_dir($uploadDirectory)) {
     flash_set('error', 'The picture upload folder could not be created.');
     redirect('member/dashboard.php');
@@ -42,7 +46,7 @@ if (!is_dir($uploadDirectory) && !mkdir($uploadDirectory, 0755, true) && !is_dir
 $user = current_user();
 $filename = 'member-' . $user['user_id'] . '-' . bin2hex(random_bytes(8)) . '.' . $allowedTypes[$mimeType];
 $relativePath = 'uploads/profile-pictures/' . $filename;
-$destination = ROOT_PATH . '/' . $relativePath;
+$destination = $uploadDirectory . DIRECTORY_SEPARATOR . $filename;
 
 if (!move_uploaded_file((string) $file['tmp_name'], $destination)) {
     flash_set('error', 'The profile picture could not be saved.');
@@ -55,11 +59,26 @@ try {
     // The column already exists on databases imported from the current schema.
 }
 
-$stmt = db()->prepare('UPDATE members SET profile_picture = :profile_picture WHERE member_id = :member_id');
+$stmt = db()->prepare(
+    "UPDATE members SET profile_picture = :profile_picture
+     WHERE member_id = :member_id AND status = 'active'"
+);
 $stmt->execute([
     'profile_picture' => $relativePath,
     'member_id' => $user['user_id'],
 ]);
+if ($stmt->rowCount() !== 1) {
+    if (is_file($destination) && !unlink($destination)) {
+        try {
+            member_erasure_queue_profile_picture_cleanup(db(), (int) $user['user_id'], $relativePath);
+        } catch (Throwable $exception) {
+            error_log('Member profile picture cleanup could not be queued (' . get_class($exception) . ').');
+        }
+        error_log('Member profile picture cleanup failed after account status changed.');
+    }
+    flash_set('error', 'This member account is no longer active.');
+    redirect('auth/login.php');
+}
 
 flash_set('success', 'Your profile picture has been uploaded.');
 redirect('member/dashboard.php');

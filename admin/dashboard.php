@@ -18,15 +18,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $smsResult = ['success' => false, 'message' => 'No test SMS was sent.'];
         if ($memberId > 0) {
-            $smsResult = send_sms_to_member($memberId, 'ChamaWise SMS test: this is a test message from Africa\'s Talking.');
+            $smsResult = send_sms_to_member($memberId, 'ChamaWise SMS test: this is a test message.');
         } elseif ($customPhone !== '') {
-            $smsResult = send_sms($customPhone, 'ChamaWise SMS test: this is a test message from Africa\'s Talking.');
+            $smsResult = send_sms($customPhone, 'ChamaWise SMS test: this is a test message.');
         }
 
         if ($smsResult['success'] ?? false) {
-            flash_set('success', 'Test SMS sent successfully via ' . e((string) ($smsResult['provider'] ?? 'SMS provider')) . '.');
+            $smsProvider = (string) ($smsResult['provider'] ?? 'SMS provider');
+            $deliveryStatus = strtolower($smsProvider) === 'mobilesasa' ? 'accepted for processing' : 'sent successfully';
+            flash_set('success', 'Test SMS ' . $deliveryStatus . ' via ' . $smsProvider . '.');
         } else {
-            flash_set('error', 'Test SMS failed: ' . e((string) ($smsResult['message'] ?? 'Unknown SMS error.')));
+            flash_set('error', 'Test SMS failed: ' . (string) ($smsResult['message'] ?? 'Unknown SMS error.'));
         }
 
         redirect('admin/dashboard.php');
@@ -70,22 +72,7 @@ require ROOT_PATH . '/includes/header.php';
 ?>
 
 <div class="admin-layout">
-    <aside class="admin-sidebar">
-        <nav aria-label="Admin navigation">
-            <a class="admin-nav-link active" href="<?php echo e(url('admin/dashboard.php')); ?>"><span aria-hidden="true">&#8962;</span> Dashboard</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/members.php')); ?>"><span aria-hidden="true">&#128101;</span> Members</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/contributions.php')); ?>"><span aria-hidden="true">&#9776;</span> Contributions</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/penalties.php')); ?>"><span aria-hidden="true">&#9888;</span> Penalties</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/loans.php')); ?>"><span aria-hidden="true">&#9633;</span> Loans</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/repayments.php')); ?>"><span aria-hidden="true">&#8646;</span> Repayments</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/meetings.php')); ?>"><span aria-hidden="true">&#9635;</span> Meetings</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/reports.php')); ?>"><span aria-hidden="true">&#9646;</span> Reports</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/investments.php')); ?>"><span aria-hidden="true">&#9679;</span> Investments</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/settings.php')); ?>"><span aria-hidden="true">&#9881;</span> Settings</a>
-            <a class="admin-nav-link" href="<?php echo e(url('admin/intelligence.php')); ?>"><span aria-hidden="true">&#10022;</span> ChamaWise Intelligence</a>
-        </nav>
-        <a class="admin-nav-link admin-logout" href="<?php echo e(url('auth/logout.php')); ?>"><span aria-hidden="true">&#10132;</span> Logout</a>
-    </aside>
+    <?php require ROOT_PATH . '/includes/admin_sidebar.php'; ?>
 
     <section class="admin-content">
         <div class="admin-heading">
@@ -94,7 +81,10 @@ require ROOT_PATH . '/includes/header.php';
                 <h1>Welcome, <?php echo e(current_user()['name'] ?? 'Admin'); ?>.</h1>
                 <p>Here is an overview of your chama activities.</p>
             </div>
-            <span class="admin-overview-badge">All-time overview</span>
+            <div class="admin-dashboard-actions">
+                <a class="btn btn-outline-brand" href="<?php echo e(url('admin/sms.php')); ?>">Open SMS Centre</a>
+                <span class="admin-overview-badge">All-time overview</span>
+            </div>
         </div>
 
         <div class="admin-stat-grid">
@@ -132,7 +122,7 @@ require ROOT_PATH . '/includes/header.php';
 
         <div class="admin-panel-grid admin-panel-grid-bottom">
             <article class="admin-panel table-panel">
-                <div class="admin-panel-title"><h2>Send Test SMS</h2></div>
+                <div class="admin-panel-title" id="test-sms"><h2>Send Test SMS</h2></div>
                 <form method="post" class="sms-test-form">
                     <?php echo csrf_field(); ?>
                     <input type="hidden" name="action" value="test_sms">
@@ -143,7 +133,7 @@ require ROOT_PATH . '/includes/header.php';
                         <?php endforeach; ?>
                     </select></label>
                     <label>Or direct phone number <input type="text" name="phone" value="" placeholder="+254712345678"></label>
-                    <button class="btn btn-brand" type="submit">Send Test SMS</button>
+                    <button class="btn btn-brand" type="submit">Send Test SMS via <?php echo e(ucfirst((string) env('SMS_PROVIDER', 'log'))); ?></button>
                 </form>
             </article>
 
